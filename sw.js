@@ -1,7 +1,7 @@
 // Keeps the app working with no signal. Only the app's own files are cached, never scans.
-const VERSION = 'ps-v1';
+const VERSION = 'ps-v2';
 const CORE = ['./', './index.html', './manifest.json', './lib/jspdf.umd.min.js', './lib/opencv.js',
-  './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
+  './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/home.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
