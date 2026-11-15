@@ -143,6 +143,18 @@ input[type=file]{display:none}
 .field{font:inherit;font-size:18px;padding:14px;border-radius:12px;border:1.5px solid var(--line);background:#fff;width:100%;margin-top:-6px}
 .field:focus{outline:none;border-color:var(--accent)}
 .count{background:var(--accent);color:#fff;border-radius:999px;font-size:14px;padding:1px 9px;margin-left:4px}
+/* swipe rows */
+.swrow{position:relative;overflow:hidden;border-radius:14px;flex:none}
+.swrow .sa{position:absolute;top:0;bottom:0;width:50%;display:flex;align-items:center;color:#fff;font-weight:700;font-size:16px;border:0}
+.swrow .sa.l{left:0;background:var(--accent);justify-content:flex-start;padding-left:20px}
+.swrow .sa.r{right:0;background:var(--danger);justify-content:flex-end;padding-right:20px}
+.swrow .fg{position:relative;transition:transform .2s ease;touch-action:pan-y;will-change:transform}
+.swrow .fg.drag{transition:none}
+.swhint{font-size:13px;color:var(--muted);text-align:center;margin:10px 0 0}
+#undoBar{position:fixed;left:12px;right:12px;bottom:calc(16px + var(--safe-b));background:#121826;color:#fff;border-radius:14px;padding:10px 10px 10px 16px;display:none;align-items:center;gap:10px;z-index:45;font-size:15px}
+#undoBar.on{display:flex}
+#undoBar span{flex:1}
+#undoBar button{color:#8fb0ff;font-weight:700;padding:10px 12px}
 #viewBody img{width:100%;border-radius:6px;box-shadow:0 1px 6px rgba(0,0,0,.18);background:#fff}
 </style>
 </head>
@@ -229,6 +241,7 @@ input[type=file]{display:none}
   <div class="body">
     <p class="small muted" style="margin:0 0 12px" data-t="libNote"></p>
     <div class="list" id="libList" style="margin-top:0"></div>
+    <p class="swhint" data-t="swipeHint"></p>
   </div>
 </section>
 
@@ -309,6 +322,7 @@ input[type=file]{display:none}
       <p class="small muted" style="margin:8px 0 0" data-t="autoDelete"></p>
     </div>
     <div class="list" id="driveList"></div>
+    <p class="swhint" data-t="swipeHint"></p>
     <button id="btnDeleteAll" class="btn secondary danger" style="margin-top:16px;width:100%;display:none" data-t="deleteAll"></button>
   </div>
 </section>
@@ -336,6 +350,7 @@ input[type=file]{display:none}
 <div id="busy"><div class="box"><div class="spin"></div><div id="busyText"></div></div></div>
 <div id="sheetWrap"><div id="sheet"></div></div>
 <div id="toast"></div>
+<div id="undoBar"><span id="undoText"></span><button id="undoBtn"></button></div>
 
 <script src="lib/jspdf.umd.min.js"></script>
 <script>
@@ -360,6 +375,7 @@ const STR = {
     appName:'Private Scanner', scan:'Scan a document', fromPhotos:'Use a photo instead',
     privacyNote:'Scans are kept only inside this app on this phone (not in Photos or iCloud) and delete themselves after '+KEEP_PHONE_DAYS+' days.',
     myScans:'My scans', libNote:'Kept only inside this app on this phone. Each scan deletes itself '+KEEP_PHONE_DAYS+' days after it was made.',
+    swipeHint:'Swipe left to delete, swipe right to rename.', rename:'Rename', renameTitle:'Rename scan', saveName:'Save', renamed:'Renamed', undo:'Undo',
     libEmpty:'No scans yet.', view:'View', sentBadge:'Sent', driveBadge:'In Drive', done:'Done',
     keptToast:'Saved in My scans', keptNote:d=>'Also kept in My scans on this phone until '+d+'.',
     phoneDelNote:'It will be erased from this phone.',
@@ -396,6 +412,7 @@ const STR = {
     appName:'Приватний сканер', scan:'Сканувати документ', fromPhotos:'Вибрати фото з галереї',
     privacyNote:'Скани зберігаються лише в цьому застосунку на телефоні (не у Фото й не в iCloud) і самі видаляються через '+KEEP_PHONE_DAYS+' днів.',
     myScans:'Мої скани', libNote:'Зберігаються лише в цьому застосунку на телефоні. Кожен скан видаляється сам через '+KEEP_PHONE_DAYS+' днів після створення.',
+    swipeHint:'Проведіть вліво, щоб видалити, вправо — щоб перейменувати.', rename:'Перейменувати', renameTitle:'Перейменувати скан', saveName:'Зберегти', renamed:'Перейменовано', undo:'Повернути',
     libEmpty:'Сканів ще немає.', view:'Переглянути', sentBadge:'Надіслано', driveBadge:'На Диску', done:'Готово',
     keptToast:'Збережено в «Мої скани»', keptNote:d=>'Також зберігається в «Мої скани» на телефоні до '+d+'.',
     phoneDelNote:'Його буде стерто з цього телефона.',
@@ -448,7 +465,7 @@ function applyText(){
    ========================================================= */
 const $=id=>document.getElementById(id);
 let cur='home';
-function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));cur=id;if(id!=='live'&&typeof live!=='undefined'&&live.stream)stopStream();}
+function show(id){if(typeof flushUndo==='function'&&id!==cur)flushUndo();document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));cur=id;if(id!=='live'&&typeof live!=='undefined'&&live.stream)stopStream();}
 function busy(on,text){$('busy').classList.toggle('on',!!on);if(text)$('busyText').textContent=text;}
 let toastT;function toast(msg){const e=$('toast');e.textContent=msg;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on'),3200);}
 function sheet(title,note,actions){
@@ -883,13 +900,17 @@ function renderDriveList(){
   driveFiles.forEach(f=>{
     const until=new Date(f.created+KEEP_DAYS*864e5);
     const it=document.createElement('div');it.className='item';
-    it.innerHTML=`<div class="info"><div class="nm"></div><div class="meta"></div></div><button class="act opn"></button><button class="act del"></button>`;
+    it.innerHTML=`<div class="info"><div class="nm"></div><div class="meta"></div></div><button class="act opn"></button>`;
     it.querySelector('.nm').textContent=f.name;
     it.querySelector('.meta').textContent=`${fmtSize(+f.size||0)} · ${t('deletesOn',until.toLocaleDateString(lang==='uk'?'uk-UA':'en-US',{month:'short',day:'numeric'}))}`;
     it.querySelector('.opn').textContent=t('open');it.querySelector('.opn').onclick=()=>openDriveFile(f);
-    it.querySelector('.del').textContent=t('del');
-    it.querySelector('.del').onclick=()=>sheet(t('delConfirm',f.name),t('delNote'),[{label:t('del'),kind:'danger',fn:()=>deleteFiles([f])}]);
-    L.appendChild(it);
+    L.appendChild(swipeRow(it,()=>renameDrive(f),()=>{
+      const row=it.parentNode;row.style.display='none';
+      undoable(t('deleted'),()=>{row.style.display='';row._close&&row._close();},async()=>{
+        try{await fam('delete',{fileId:f.id});driveFiles=driveFiles.filter(x=>x.id!==f.id);}catch(e){toast(t('driveError'));renderDriveList();}
+        $('btnDeleteAll').style.display=driveFiles.length>1?'':'none';
+      });
+    }));
   });
   $('btnDeleteAll').style.display=driveFiles.length>1?'':'none';
 }
@@ -963,7 +984,11 @@ async function openLibrary(){
     const bb=info.querySelector('.b');
     if(r.sent){const s_=document.createElement('span');s_.className='badge';s_.textContent=t('sentBadge');bb.appendChild(s_);}
     if(r.drive){const s_=document.createElement('span');s_.className='badge d';s_.textContent=t('driveBadge');bb.appendChild(s_);}
-    b.appendChild(info);b.onclick=()=>libMenu(r);L.appendChild(b);
+    b.appendChild(info);b.onclick=()=>libMenu(r);
+    L.appendChild(swipeRow(b,()=>renameLib(r),()=>{
+      const row=b.parentNode;row.style.display='none';
+      undoable(t('deleted'),()=>{row.style.display='';row._close&&row._close();},async()=>{await libDel(r.id).catch(()=>{});if(doc.id===r.id)wipeDoc();updateLibCount();});
+    }));
   });
   updateLibCount();
 }
@@ -979,6 +1004,63 @@ async function libMenu(r){
     {label:t('del'),kind:'danger',fn:()=>sheet(t('delConfirm',r.name),t('phoneDelNote'),[{label:t('del'),kind:'danger',fn:async()=>{await libDel(r.id);if(doc.id===r.id)wipeDoc();toast(t('deleted'));openLibrary();}}])}
   ].filter(Boolean));
 }
+/* ---------- swipe a row: left = delete, right = rename ---------- */
+function swipeRow(fg,onRename,onDelete){
+  const row=document.createElement('div');row.className='swrow';
+  const l=document.createElement('button');l.className='sa l';l.textContent=t('rename');
+  const r=document.createElement('button');r.className='sa r';r.textContent=t('del');
+  fg.classList.add('fg');row.append(l,r,fg);
+  let x0=null,y0=0,dx=0,open=0,drag=false,moved=false;
+  const set=v=>{open=v;fg.style.transform=v?`translateX(${v}px)`:'';};
+  row._close=()=>set(0);
+  fg.addEventListener('pointerdown',e=>{x0=e.clientX;y0=e.clientY;drag=false;moved=false;
+    document.querySelectorAll('.swrow').forEach(o=>{if(o!==row&&o._close)o._close();});});
+  fg.addEventListener('pointermove',e=>{
+    if(x0===null)return;const ddx=e.clientX-x0,ddy=e.clientY-y0;
+    if(!drag){if(Math.abs(ddx)>10&&Math.abs(ddx)>Math.abs(ddy)*1.2){drag=moved=true;fg.classList.add('drag');try{fg.setPointerCapture(e.pointerId);}catch(_){}}
+      else if(Math.abs(ddy)>10){x0=null;return;}}
+    if(drag){dx=Math.max(-150,Math.min(150,open+ddx));fg.style.transform=`translateX(${dx}px)`;}
+  });
+  const end=()=>{if(drag){fg.classList.remove('drag');set(dx<-60?-120:dx>60?120:0);}x0=null;drag=false;};
+  fg.addEventListener('pointerup',end);fg.addEventListener('pointercancel',end);
+  fg.addEventListener('click',e=>{if(moved||open){e.stopPropagation();e.preventDefault();if(!moved)set(0);moved=false;}},true);
+  l.onclick=()=>{set(0);onRename();};r.onclick=()=>{set(0);onDelete();};
+  return row;
+}
+/* ---------- delete with a few seconds to undo ---------- */
+let undoState=null;
+function undoable(msg,onUndo,onCommit){
+  if(undoState){clearTimeout(undoState.t);undoState.commit();}
+  const st={commit:onCommit,t:setTimeout(()=>{undoState=null;$('undoBar').classList.remove('on');onCommit();},5000)};
+  undoState=st;$('undoText').textContent=msg;$('undoBtn').textContent=t('undo');$('undoBar').classList.add('on');
+  $('undoBtn').onclick=()=>{clearTimeout(st.t);undoState=null;$('undoBar').classList.remove('on');onUndo();};
+}
+function flushUndo(){if(undoState){clearTimeout(undoState.t);const c=undoState.commit;undoState=null;$('undoBar').classList.remove('on');c();}}
+/* ---------- rename ---------- */
+function askName(current,onSave){
+  const s_=$('sheet');s_.innerHTML='';
+  const h=document.createElement('h3');h.textContent=t('renameTitle');s_.appendChild(h);
+  const inp=document.createElement('input');inp.className='field';inp.style.marginTop='0';inp.value=current.replace(/\.pdf$/i,'');inp.autocapitalize='sentences';s_.appendChild(inp);
+  const ok=document.createElement('button');ok.className='btn primary';ok.textContent=t('saveName');
+  const no=document.createElement('button');no.className='btn secondary';no.textContent=t('cancel');
+  ok.onclick=()=>{const v=inp.value.replace(/[\\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim().slice(0,76);if(!v)return;closeSheet();onSave(v+'.pdf');};
+  no.onclick=closeSheet;inp.addEventListener('keydown',e=>{if(e.key==='Enter')ok.click();});
+  s_.append(ok,no);$('sheetWrap').classList.add('on');setTimeout(()=>{inp.focus();inp.select();},50);
+}
+function renameLib(r){
+  askName(r.name,async name=>{
+    r.name=name;await libMark(r.id,{name});if(doc.id===r.id)doc.pdfName=name;
+    toast(t('renamed'));await openLibrary();libMenu(r);
+  });
+}
+function renameDrive(f){
+  askName(f.name,async name=>{
+    busy(true,t('loading'));
+    try{const j=await fam('rename',{fileId:f.id,name});f.name=j.name||name;busy(false);toast(t('renamed'));renderDriveList();openDriveFile(f);}
+    catch(e){busy(false);toast(t('driveError'));}
+  });
+}
+
 let viewPdf=null,viewRec=null;
 function openViewer(r,pdf){
   viewPdf=pdf;viewRec=r;show('viewer');$('viewTitle').textContent=r.name;
