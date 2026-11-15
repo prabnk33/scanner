@@ -251,7 +251,8 @@ input[type=file]{display:none}
   </div>
   <div class="body">
     <div class="seg" id="filterSeg">
-      <button data-f="clean" data-t="filterClean"></button>
+      <button data-f="bw" data-t="filterBW"></button>
+      <button data-f="gray" data-t="filterGray"></button>
       <button data-f="color" data-t="filterColor"></button>
       <button data-f="original" data-t="filterOriginal"></button>
     </div>
@@ -347,7 +348,8 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyT9zaczdz-C5Vpk5iSJ
 const KEEP_DAYS = 30;                         // scans in the family Drive are deleted after this many days (set in the script too)
 const KEEP_PHONE_DAYS = 30;                   // scans kept inside the app on the phone for this many days
 const MAX_SRC = 2800;                         // longest side of stored photo (px)
-const MAX_OUT = 2000;                         // longest side of a finished page (px)
+const MAX_OUT = 2200;                         // longest side of a finished page (px), about 200 dpi on Letter
+const FILTER = {bw:[135,212], gray:[125,228], color:[115,236]}; // contrast settings: [dark point, white point]
 
 /* =========================================================
    ALL TEXT (add a language by copying a block)
@@ -368,7 +370,7 @@ const STR = {
     detecting:'Finding the page…', cropTitle:'Drag the corners to the page edges',
     retake:'Retake', fullPhoto:'Whole photo', useThis:'Next',
     pages:n=> n===1?'1 page':n+' pages', addPage:'Add page',
-    filterClean:'Clean', filterColor:'Color', filterOriginal:'Original',
+    filterBW:'B&W', filterGray:'Gray', filterColor:'Color', filterOriginal:'Original',
     send:'Send', saveDrive:'Save to Drive', preparing:'Preparing the PDF…',
     tapAgain:'PDF is ready. Tap Send again.', processing:'Processing…',
     pageN:n=>'Page '+n, rotate:'Rotate', adjust:'Adjust corners', retakePage:'Retake photo', deletePage:'Delete page',
@@ -404,7 +406,7 @@ const STR = {
     detecting:'Шукаємо сторінку…', cropTitle:'Перетягніть кути до країв сторінки',
     retake:'Перезняти', fullPhoto:'Усе фото', useThis:'Далі',
     pages:n=> n+' '+ukPlural(n,'сторінка','сторінки','сторінок'), addPage:'Додати сторінку',
-    filterClean:'Чистий', filterColor:'Кольоровий', filterOriginal:'Оригінал',
+    filterBW:'Ч/Б', filterGray:'Сірий', filterColor:'Колір', filterOriginal:'Оригінал',
     send:'Надіслати', saveDrive:'На Google Диск', preparing:'Готуємо PDF…',
     tapAgain:'PDF готовий. Натисніть «Надіслати» ще раз.', processing:'Обробка…',
     pageN:n=>'Сторінка '+n, rotate:'Повернути', adjust:'Змінити кути', retakePage:'Перезняти фото', deletePage:'Видалити сторінку',
@@ -555,13 +557,14 @@ function findQuad(canvas,fast){
   return o.map(p=>[p[0]+(cx-p[0])*0.012,p[1]+(cy-p[1])*0.012]); // pull in slightly so the table edge does not show
 }
 function estimateBg(cv,m){
-  const small=new cv.Mat(),k=cv.getStructuringElement(cv.MORPH_ELLIPSE,new cv.Size(5,5)),bg=new cv.Mat();
+  const small=new cv.Mat(),k=cv.getStructuringElement(cv.MORPH_ELLIPSE,new cv.Size(7,7)),bg=new cv.Mat();
   cv.resize(m,small,new cv.Size(Math.max(8,Math.round(m.cols/4)),Math.max(8,Math.round(m.rows/4))),0,0,cv.INTER_AREA);
   cv.dilate(small,small,k);cv.medianBlur(small,small,15);
   cv.resize(small,bg,new cv.Size(m.cols,m.rows),0,0,cv.INTER_LINEAR);
   small.delete();k.delete();return bg;
 }
 function levels(m,lo,hi){const a=255/(hi-lo);m.convertTo(m,-1,a,-lo*a);}
+function sharpen(cv,m,amt,sigma){const b=new cv.Mat();cv.GaussianBlur(m,b,new cv.Size(0,0),sigma||1.4);cv.addWeighted(m,1+amt,b,-amt,0,m);b.delete();}
 function renderPage(srcCanvas,quad,rot,filter){
   const cv=window.cv,[tl,tr,br,bl]=quad;
   let W=(dist(br,bl)+dist(tr,tl))/2,H=(dist(tr,br)+dist(tl,bl))/2;
@@ -569,21 +572,25 @@ function renderPage(srcCanvas,quad,rot,filter){
   {const r=Math.max(W,H)/Math.min(W,H);let best=null,bd=0.1;
    for(const c of [11/8.5,297/210,85.6/53.98,14/8.5]){const d=Math.abs(r-c)/c;if(d<bd){bd=d;best=c;}}
    if(best){if(H>=W)H=W*best;else W=H*best;}}
-  const s=Math.min(1,MAX_OUT/Math.max(W,H));W=Math.max(16,Math.round(W*s));H=Math.max(16,Math.round(H*s));
+  const s=MAX_OUT/Math.max(W,H);W=Math.max(16,Math.round(W*s));H=Math.max(16,Math.round(H*s)); // always a full-size page, like a real scanner
   const src=cv.imread(srcCanvas),dst=new cv.Mat();
   const from=cv.matFromArray(4,1,cv.CV_32FC2,[tl[0],tl[1],tr[0],tr[1],br[0],br[1],bl[0],bl[1]]);
   const to=cv.matFromArray(4,1,cv.CV_32FC2,[0,0,W-1,0,W-1,H-1,0,H-1]);
   const Mx=cv.getPerspectiveTransform(from,to);
-  cv.warpPerspective(src,dst,Mx,new cv.Size(W,H),cv.INTER_LINEAR,cv.BORDER_REPLICATE,new cv.Scalar());
+  cv.warpPerspective(src,dst,Mx,new cv.Size(W,H),cv.INTER_CUBIC,cv.BORDER_REPLICATE,new cv.Scalar());
   src.delete();from.delete();to.delete();Mx.delete();
   let out=new cv.Mat();
-  if(filter==='clean'){
+  if(filter==='bw'||filter==='clean'){            // black & white, like an office scanner
     cv.cvtColor(dst,out,cv.COLOR_RGBA2GRAY);const bg=estimateBg(cv,out);
-    cv.divide(out,bg,out,255);bg.delete();levels(out,60,232);
-  }else if(filter==='color'){
+    cv.divide(out,bg,out,255);bg.delete();
+    cv.GaussianBlur(out,out,new cv.Size(3,3),0);sharpen(cv,out,1.2,1.6);levels(out,FILTER.bw[0],FILTER.bw[1]);
+  }else if(filter==='gray'){                       // grayscale with strong contrast
+    cv.cvtColor(dst,out,cv.COLOR_RGBA2GRAY);const bg=estimateBg(cv,out);
+    cv.divide(out,bg,out,255);bg.delete();sharpen(cv,out,0.9,1.4);levels(out,FILTER.gray[0],FILTER.gray[1]);
+  }else if(filter==='color'){                      // color with white paper
     cv.cvtColor(dst,out,cv.COLOR_RGBA2RGB);const bg=estimateBg(cv,out);
-    cv.divide(out,bg,out,255);bg.delete();levels(out,18,242);
-  }else{cv.cvtColor(dst,out,cv.COLOR_RGBA2RGB);}
+    cv.divide(out,bg,out,255);bg.delete();sharpen(cv,out,0.7,1.4);levels(out,FILTER.color[0],FILTER.color[1]);
+  }else{cv.cvtColor(dst,out,cv.COLOR_RGBA2RGB);sharpen(cv,out,0.4,1.2);}
   dst.delete();
   if(rot){const r=new cv.Mat();cv.rotate(out,r,[cv.ROTATE_90_CLOCKWISE,cv.ROTATE_180,cv.ROTATE_90_COUNTERCLOCKWISE][rot-1]);out.delete();out=r;}
   const c=document.createElement('canvas');cv.imshow(c,out);out.delete();return c;
@@ -593,7 +600,7 @@ function renderPage(srcCanvas,quad,rot,filter){
    THE CURRENT SCAN (memory only, never saved on the phone)
    ========================================================= */
 let doc=newDoc();
-function newDoc(){return {id:'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),pages:[],created:null,filter:(()=>{try{return localStorage.getItem('ps_filter')||'clean';}catch(e){return 'clean';}})(),pdf:null,pdfName:'',sent:false,saved:false,savedUntil:null,gen:0};}
+function newDoc(){return {id:'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),pages:[],created:null,filter:(()=>{try{const f=localStorage.getItem('ps_filter');return ['bw','gray','color','original'].includes(f)?f:'bw';}catch(e){return 'bw';}})(),pdf:null,pdfName:'',sent:false,saved:false,savedUntil:null,gen:0};}
 function wipeDoc(){doc.pages.forEach(p=>{if(p.thumb)URL.revokeObjectURL(p.thumb);});doc=newDoc();idbDel('pending').catch(()=>{});}
 let uid=1;
 
@@ -685,7 +692,7 @@ async function processPage(p,gen){
   const canvas=await blobToCanvas(p.src);
   if(gen!==doc.gen)return;
   const out=renderPage(canvas,p.quad,p.rot,doc.filter);
-  const blob=await canvasToBlob(out,doc.filter==='original'?0.82:0.74);
+  const blob=await canvasToBlob(out,doc.filter==='original'?0.85:0.8);
   if(gen!==doc.gen)return;
   if(p.thumb)URL.revokeObjectURL(p.thumb);
   p.out=blob;p.w=out.width;p.h=out.height;p.thumb=URL.createObjectURL(blob);
@@ -1048,6 +1055,13 @@ function looksLikePage(q,c){
     const x=(1-v)*((1-u)*tl[0]+u*tr[0])+v*((1-u)*bl[0]+u*br[0]),y=(1-v)*((1-u)*tl[1]+u*tr[1])+v*((1-u)*bl[1]+u*br[1]);inn+=g(x,y);m++;}
   return inn/m>all+8;
 }
+function sharpness(canvas){
+  const cv=window.cv,t_=document.createElement('canvas'),s=480/Math.max(canvas.width,canvas.height);
+  t_.width=Math.round(canvas.width*s);t_.height=Math.round(canvas.height*s);t_.getContext('2d').drawImage(canvas,0,0,t_.width,t_.height);
+  const m=cv.imread(t_),g=new cv.Mat(),l=new cv.Mat(),mean=new cv.Mat(),sd=new cv.Mat();
+  cv.cvtColor(m,g,cv.COLOR_RGBA2GRAY);cv.Laplacian(g,l,cv.CV_64F);cv.meanStdDev(l,mean,sd);
+  const v=sd.data64F[0];[m,g,l,mean,sd].forEach(x=>x.delete());return v;
+}
 function liveMap(){
   const v=$('vid'),r=$('live').getBoundingClientRect(),vw=v.videoWidth||1,vh=v.videoHeight||1,s=Math.max(r.width/vw,r.height/vh);
   return {s,ox:(r.width-vw*s)/2,oy:(r.height-vh*s)/2,vw,vh};
@@ -1076,8 +1090,14 @@ async function capture(){
   live.busy=true;
   const f=$('flash');f.classList.add('on');setTimeout(()=>f.classList.remove('on'),60);
   const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(1,MAX_SRC/Math.max(vw,vh));
-  const c=document.createElement('canvas');c.width=Math.round(vw*s);c.height=Math.round(vh*s);
-  c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+  // grab 3 frames and keep the sharpest one (less blur from a moving hand)
+  let c=null,bestScore=-1;
+  for(let k=0;k<3;k++){
+    const ck=document.createElement('canvas');ck.width=Math.round(vw*s);ck.height=Math.round(vh*s);
+    ck.getContext('2d').drawImage(v,0,0,ck.width,ck.height);
+    const sc=sharpness(ck);if(sc>bestScore){bestScore=sc;c=ck;}
+    if(k<2)await sleep(80);
+  }
   live.snap=tinyGray(c);live.armed=false;live.stable=0;
   let q=null;try{q=findQuad(c);}catch(e){}
   if(!q&&live.last)q=live.last.map(p=>[p[0]*c.width,p[1]*c.height]);
