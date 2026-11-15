@@ -108,9 +108,40 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 #sheet{background:var(--bg);width:100%;border-radius:20px 20px 0 0;padding:16px 16px calc(16px + var(--safe-b));display:flex;flex-direction:column;gap:10px}
 #sheet h3{margin:4px 0 6px;text-align:center;font-size:17px}
 #sheet p{margin:0 0 6px;text-align:center;color:var(--muted);font-size:15px}
-#toast{position:fixed;left:50%;bottom:calc(110px + var(--safe-b));transform:translateX(-50%);background:#121826;color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;z-index:60;display:none;max-width:88%;text-align:center}
+#toast{position:fixed;left:50%;top:calc(64px + var(--safe-t));transform:translateX(-50%);background:#121826;color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;z-index:60;display:none;max-width:88%;text-align:center}
 #toast.on{display:block}
 input[type=file]{display:none}
+/* live camera */
+#live{background:#000;color:#fff;padding-top:0}
+#live video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#liveOverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#liveOverlay polygon{fill:rgba(61,220,132,.16);stroke:#3ddc84;stroke-width:3.5;stroke-linejoin:round}
+#liveOverlay polygon.done{fill:rgba(255,255,255,.08);stroke:#fff;stroke-dasharray:10 8}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .35s}
+#flash.on{opacity:.85;transition:none}
+#live .lt{position:absolute;left:0;right:0;top:0;padding:calc(var(--safe-t) + 8px) 12px 18px;display:flex;align-items:center;gap:8px;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+#live .hint{flex:1;text-align:center;font-weight:600;font-size:16px;text-shadow:0 1px 4px #000}
+#live .iconbtn{color:#fff}
+.autobtn{padding:9px 13px;border-radius:999px;background:rgba(255,255,255,.2);color:#fff;font-weight:700;font-size:14px}
+.autobtn.on{background:#3ddc84;color:#06301a}
+#live .lb{position:absolute;left:0;right:0;bottom:0;padding:22px 22px calc(20px + var(--safe-b));display:flex;align-items:center;justify-content:space-between;background:linear-gradient(transparent,rgba(0,0,0,.65))}
+.shutter{width:80px;height:80px;border-radius:50%;border:5px solid #fff;display:grid;place-items:center;background:transparent}
+.shutter::after{content:'';width:60px;height:60px;border-radius:50%;background:#fff;transition:transform .1s}
+.shutter:active::after{transform:scale(.88)}
+.lthumb{width:64px;height:64px;border-radius:12px;background:rgba(255,255,255,.18);position:relative;overflow:visible;display:grid;place-items:center;color:#fff;font-weight:700}
+.lthumb img{width:100%;height:100%;object-fit:cover;border-radius:12px}
+.lthumb .c{position:absolute;right:-8px;top:-8px;background:#3ddc84;color:#06301a;border-radius:999px;min-width:26px;height:26px;font-size:14px;display:grid;place-items:center;padding:0 6px}
+.ldone{min-width:72px;height:50px;border-radius:14px;background:var(--accent);color:#fff;font-weight:700;padding:0 16px;font-size:17px}
+.ldone[hidden],.lthumb[hidden]{visibility:hidden;display:grid}
+/* library */
+.libitem{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;gap:12px;align-items:center}
+.libitem img{width:52px;height:68px;object-fit:cover;border-radius:6px;border:1px solid var(--line);flex:none;background:#fff}
+.libitem .nm{font-weight:600;font-size:15px;word-break:break-all}
+.libitem .meta{font-size:13px;color:var(--muted)}
+.badge{display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:1px 7px;margin:4px 6px 0 0;background:#e3f3e9;color:var(--ok)}
+.badge.d{background:var(--accent-soft);color:var(--accent)}
+.count{background:var(--accent);color:#fff;border-radius:999px;font-size:14px;padding:1px 9px;margin-left:4px}
+#viewBody img{width:100%;border-radius:6px;box-shadow:0 1px 6px rgba(0,0,0,.18);background:#fff}
 </style>
 </head>
 <body>
@@ -131,6 +162,10 @@ input[type=file]{display:none}
       <span data-t="scan"></span>
     </button>
     <button id="btnGallery" class="link" data-t="fromPhotos"></button>
+    <button id="btnLibrary" class="btn secondary">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
+      <span data-t="myScans"></span><span class="count" id="libCount" style="display:none"></span>
+    </button>
     <button id="btnMyDrive" class="btn secondary" style="display:none">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
       <span data-t="myDrive"></span>
@@ -165,12 +200,52 @@ input[type=file]{display:none}
   </div>
 </section>
 
+<!-- LIVE CAMERA -->
+<section id="live" class="screen">
+  <video id="vid" playsinline muted autoplay></video>
+  <svg id="liveOverlay"></svg>
+  <div id="flash"></div>
+  <div class="lt">
+    <button class="iconbtn" id="liveClose" aria-label="close">✕</button>
+    <div class="hint" id="liveHint"></div>
+    <button class="autobtn" id="autoBtn"></button>
+  </div>
+  <div class="lb">
+    <button class="lthumb" id="liveThumb" hidden></button>
+    <button class="shutter" id="shutter" aria-label="take photo"></button>
+    <button class="ldone" id="liveDone" data-t="done" hidden></button>
+  </div>
+</section>
+
+<!-- MY SCANS ON THIS PHONE -->
+<section id="library" class="screen">
+  <div class="top">
+    <button class="iconbtn" id="libBack" aria-label="back">‹</button>
+    <h2 data-t="myScans"></h2>
+    <span style="width:44px"></span>
+  </div>
+  <div class="body">
+    <p class="small muted" style="margin:0 0 12px" data-t="libNote"></p>
+    <div class="list" id="libList" style="margin-top:0"></div>
+  </div>
+</section>
+
+<!-- VIEW A SAVED SCAN -->
+<section id="viewer" class="screen">
+  <div class="top">
+    <button class="iconbtn" id="viewBack" aria-label="back">‹</button>
+    <h2 id="viewTitle" style="font-size:15px"></h2>
+    <button class="link" id="viewSend" style="padding:10px 6px" data-t="send"></button>
+  </div>
+  <div class="body" id="viewBody" style="display:flex;flex-direction:column;gap:12px"></div>
+</section>
+
 <!-- REVIEW -->
 <section id="review" class="screen">
   <div class="top">
     <button class="iconbtn" id="revClose" aria-label="close">✕</button>
     <h2 id="revTitle"></h2>
-    <span style="width:44px"></span>
+    <button class="link" id="revDone" style="padding:10px 6px" data-t="done"></button>
   </div>
   <div class="body">
     <div class="seg" id="filterSeg">
@@ -258,6 +333,7 @@ input[type=file]{display:none}
 const GOOGLE_CLIENT_ID = '825995771656-mrgfnqubf7gs6ob4s3lk8kvddint8d3j.apps.googleusercontent.com';
 const DRIVE_FOLDER = 'Private Scanner';      // folder created in each person's own Google Drive
 const KEEP_DAYS = 30;                         // scans in Drive are deleted after this many days
+const KEEP_PHONE_DAYS = 30;                   // scans kept inside the app on the phone for this many days
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'; // app can only see files it created
 const MAX_SRC = 2800;                         // longest side of stored photo (px)
 const MAX_OUT = 2000;                         // longest side of a finished page (px)
@@ -269,7 +345,13 @@ function ukPlural(n, one, few, many){const a=n%10,b=n%100;if(a===1&&b!==11)retur
 const STR = {
   en:{
     appName:'Private Scanner', scan:'Scan a document', fromPhotos:'Use a photo instead',
-    privacyNote:'Scans stay on this phone until you send or save them. The app keeps nothing.',
+    privacyNote:'Scans are kept only inside this app on this phone (not in Photos or iCloud) and delete themselves after '+KEEP_PHONE_DAYS+' days.',
+    myScans:'My scans', libNote:'Kept only inside this app on this phone. Each scan deletes itself '+KEEP_PHONE_DAYS+' days after it was made.',
+    libEmpty:'No scans yet.', view:'View', sentBadge:'Sent', driveBadge:'In Drive', done:'Done',
+    keptToast:'Saved in My scans', keptNote:d=>'Also kept in My scans on this phone until '+d+'.',
+    phoneDelNote:'It will be erased from this phone.',
+    camPoint:'Point the camera at a document', camHold:'Hold still…', camNext:'Got it. Next page, or tap Done',
+    camTap:'Tap the button to take the page', auto:'Auto', camFallback:'The live camera is not available here. Tap Scan again to use the regular camera.',
     myDrive:'My scans in Google Drive', loadingEngine:'Getting the scanner ready…',
     engineFailed:'The scanner could not start. Connect to the internet once and try again.',
     detecting:'Finding the page…', cropTitle:'Drag the corners to the page edges',
@@ -279,11 +361,11 @@ const STR = {
     send:'Send', saveDrive:'Save to Drive', preparing:'Preparing the PDF…',
     tapAgain:'PDF is ready. Tap Send again.', processing:'Processing…',
     pageN:n=>'Page '+n, rotate:'Rotate', adjust:'Adjust corners', retakePage:'Retake photo', deletePage:'Delete page',
-    cancel:'Cancel', discardTitle:'Discard this scan?', discardNote:'Pages you scanned will be erased.',
-    discard:'Discard', keep:'Keep scanning',
+    cancel:'Cancel', discardTitle:'Delete this scan?', discardNote:'It will be erased from this phone.',
+    discard:'Delete', keep:'Keep scanning',
     sentTitle:'Sent', savedTitle:'Saved to Google Drive', readyTitle:'Your PDF is ready',
     savedNote:d=>'It will be deleted from Drive automatically on '+d+'.',
-    eraseNote:'Tap New scan or close the app and it is erased from this phone.',
+
     newScan:'New scan', savingTo:'Saving to', switchAccount:'Switch account', signOut:'Disconnect',
     autoDelete:'Scans are deleted permanently '+KEEP_DAYS+' days after they are saved.',
     deletesOn:d=>'Deletes '+d,
@@ -297,7 +379,13 @@ const STR = {
   },
   uk:{
     appName:'Приватний сканер', scan:'Сканувати документ', fromPhotos:'Вибрати фото з галереї',
-    privacyNote:'Скани залишаються на цьому телефоні, доки ви їх не надішлете або не збережете. Застосунок нічого не зберігає.',
+    privacyNote:'Скани зберігаються лише в цьому застосунку на телефоні (не у Фото й не в iCloud) і самі видаляються через '+KEEP_PHONE_DAYS+' днів.',
+    myScans:'Мої скани', libNote:'Зберігаються лише в цьому застосунку на телефоні. Кожен скан видаляється сам через '+KEEP_PHONE_DAYS+' днів після створення.',
+    libEmpty:'Сканів ще немає.', view:'Переглянути', sentBadge:'Надіслано', driveBadge:'На Диску', done:'Готово',
+    keptToast:'Збережено в «Мої скани»', keptNote:d=>'Також зберігається в «Мої скани» на телефоні до '+d+'.',
+    phoneDelNote:'Його буде стерто з цього телефона.',
+    camPoint:'Наведіть камеру на документ', camHold:'Тримайте нерухомо…', camNext:'Готово. Наступна сторінка або «Готово»',
+    camTap:'Натисніть кнопку, щоб зняти сторінку', auto:'Авто', camFallback:'Камера в застосунку тут недоступна. Натисніть «Сканувати» ще раз, щоб відкрити звичайну камеру.',
     myDrive:'Мої скани на Google Диску', loadingEngine:'Готуємо сканер…',
     engineFailed:'Не вдалося запустити сканер. Підключіться до інтернету й спробуйте ще раз.',
     detecting:'Шукаємо сторінку…', cropTitle:'Перетягніть кути до країв сторінки',
@@ -307,11 +395,11 @@ const STR = {
     send:'Надіслати', saveDrive:'На Google Диск', preparing:'Готуємо PDF…',
     tapAgain:'PDF готовий. Натисніть «Надіслати» ще раз.', processing:'Обробка…',
     pageN:n=>'Сторінка '+n, rotate:'Повернути', adjust:'Змінити кути', retakePage:'Перезняти фото', deletePage:'Видалити сторінку',
-    cancel:'Скасувати', discardTitle:'Скасувати це сканування?', discardNote:'Відскановані сторінки буде стерто.',
-    discard:'Стерти', keep:'Продовжити',
+    cancel:'Скасувати', discardTitle:'Видалити це сканування?', discardNote:'Його буде стерто з цього телефона.',
+    discard:'Видалити', keep:'Продовжити',
     sentTitle:'Надіслано', savedTitle:'Збережено на Google Диск', readyTitle:'PDF готовий',
     savedNote:d=>'Його буде автоматично видалено з Диска '+d+'.',
-    eraseNote:'Натисніть «Нове сканування» або закрийте застосунок — і скан зникне з цього телефона.',
+
     newScan:'Нове сканування', savingTo:'Зберігається в', switchAccount:'Змінити акаунт', signOut:'Від’єднати',
     autoDelete:'Скани видаляються назавжди через '+KEEP_DAYS+' днів після збереження.',
     deletesOn:d=>'Видалиться '+d,
@@ -334,6 +422,8 @@ function applyText(){
   if(cur==='review') renderReview();
   if(cur==='done') renderDone();
   if(cur==='drive') renderDriveList();
+  if(cur==='live') renderLive();
+  if(cur==='library') openLibrary();
 }
 
 /* =========================================================
@@ -341,7 +431,7 @@ function applyText(){
    ========================================================= */
 const $=id=>document.getElementById(id);
 let cur='home';
-function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));cur=id;}
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));cur=id;if(id!=='live'&&typeof live!=='undefined'&&live.stream)stopStream();}
 function busy(on,text){$('busy').classList.toggle('on',!!on);if(text)$('busyText').textContent=text;}
 let toastT;function toast(msg){const e=$('toast');e.textContent=msg;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on'),3200);}
 function sheet(title,note,actions){
@@ -404,7 +494,8 @@ function orderQuad(p){
   return [p[s.indexOf(Math.min(...s))],p[d.indexOf(Math.min(...d))],p[s.indexOf(Math.max(...s))],p[d.indexOf(Math.max(...d))]];
 }
 function defaultQuad(w,h,inset=0.04){const x=w*inset,y=h*inset;return [[x,y],[w-x,y],[w-x,h-y],[x,h-y]];}
-function detectQuad(canvas){
+function detectQuad(canvas){return findQuad(canvas)||defaultQuad(canvas.width,canvas.height);}
+function findQuad(canvas){
   const cv=window.cv,W=canvas.width,H=canvas.height,s=Math.min(1,640/Math.max(W,H));
   const sc=document.createElement('canvas');sc.width=Math.round(W*s);sc.height=Math.round(H*s);
   sc.getContext('2d').drawImage(canvas,0,0,sc.width,sc.height);
@@ -442,7 +533,7 @@ function detectQuad(canvas){
     }
   }catch(e){console.warn('detect',e);q=null;}
   mats.forEach(m=>{try{m.delete();}catch(e){}});
-  if(!q)return defaultQuad(W,H);
+  if(!q)return null;
   const o=orderQuad(q.map(p=>[p[0]/s,p[1]/s])),cx=o.reduce((a,p)=>a+p[0],0)/4,cy=o.reduce((a,p)=>a+p[1],0)/4;
   return o.map(p=>[p[0]+(cx-p[0])*0.012,p[1]+(cy-p[1])*0.012]); // pull in slightly so the table edge does not show
 }
@@ -485,14 +576,14 @@ function renderPage(srcCanvas,quad,rot,filter){
    THE CURRENT SCAN (memory only, never saved on the phone)
    ========================================================= */
 let doc=newDoc();
-function newDoc(){return {pages:[],created:null,filter:(()=>{try{return localStorage.getItem('ps_filter')||'clean';}catch(e){return 'clean';}})(),pdf:null,pdfName:'',sent:false,saved:false,savedUntil:null,gen:0};}
+function newDoc(){return {id:'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),pages:[],created:null,filter:(()=>{try{return localStorage.getItem('ps_filter')||'clean';}catch(e){return 'clean';}})(),pdf:null,pdfName:'',sent:false,saved:false,savedUntil:null,gen:0};}
 function wipeDoc(){doc.pages.forEach(p=>{if(p.thumb)URL.revokeObjectURL(p.thumb);});doc=newDoc();idbDel('pending').catch(()=>{});}
 let uid=1;
 
 /* ---------- capture ---------- */
 let cropCtx=null; // {canvas, blob, quad, replace:index|null, editIndex:index|null}
 let captureFor=null;
-function openCamera(replaceIndex=null){captureFor={replace:replaceIndex};loadCv();$('cam').value='';$('cam').click();}
+function openNativeCamera(replaceIndex=null){captureFor={replace:replaceIndex};loadCv();$('cam').value='';$('cam').click();}
 function openGallery(){captureFor={replace:null};loadCv();$('gallery').value='';$('gallery').click();}
 async function onPhoto(file){
   if(!file)return;
@@ -597,20 +688,22 @@ async function runQueue(){
   }catch(e){console.error(e);}
   working=null;
 }
-async function buildPdf(gen){
+async function makePdf(pages,title){
   const {jsPDF}=window.jspdf;let pdf=null;
-  for(const p of doc.pages){
-    if(!p.out)return;
+  for(const p of pages){
     const pw=612,ph=Math.round(612*p.h/p.w),o=pw>ph?'l':'p';
     if(!pdf)pdf=new jsPDF({orientation:o,unit:'pt',format:[pw,ph],compress:true});else pdf.addPage([pw,ph],o);
-    const bytes=new Uint8Array(await p.out.arrayBuffer());
-    if(gen!==doc.gen)return;
-    pdf.addImage(bytes,'JPEG',0,0,pw,ph,undefined,'NONE');
+    pdf.addImage(new Uint8Array(await p.blob.arrayBuffer()),'JPEG',0,0,pw,ph,undefined,'NONE');
   }
-  if(!pdf)return;
-  pdf.setProperties({title:fileName(doc.created),creator:t('appName')});
-  const blob=pdf.output('blob');
-  if(gen===doc.gen){doc.pdf=blob;doc.pdfName=fileName(doc.created);}
+  if(!pdf)return null;
+  pdf.setProperties({title,creator:t('appName')});
+  return pdf.output('blob');
+}
+async function buildPdf(gen){
+  if(!doc.pages.length||doc.pages.some(p=>!p.out))return;
+  const name=fileName(doc.created);
+  const blob=await makePdf(doc.pages.map(p=>({blob:p.out,w:p.w,h:p.h})),name);
+  if(blob&&gen===doc.gen){doc.pdf=blob;doc.pdfName=name;libSaveDoc().catch(e=>console.warn(e));}
 }
 async function waitPdf(){
   if(doc.pdf)return true;
@@ -633,6 +726,7 @@ function renderReview(){
   });
   $('btnSave').style.display=DRIVE_ON?'':'none';
   $('fname').textContent=doc.pdf?`${doc.pdfName} · ${fmtSize(doc.pdf.size)}`:t('processing');
+  if(cur==='live')renderLive();
 }
 function pageMenu(i){
   const p=doc.pages[i];
@@ -640,7 +734,7 @@ function pageMenu(i){
     {label:t('rotate'),fn:()=>{p.rot=(p.rot+1)%4;p.out=null;changed();}},
     {label:t('adjust'),fn:async()=>{if(!await needCv())return;const c=await blobToCanvas(p.src);cropCtx={canvas:c,blob:p.src,quad:p.quad.map(q=>q.slice()),replace:null,editIndex:i};openCrop();}},
     {label:t('retakePage'),fn:()=>openCamera(i)},
-    {label:t('deletePage'),kind:'danger',fn:()=>{const [x]=doc.pages.splice(i,1);if(x.thumb)URL.revokeObjectURL(x.thumb);if(!doc.pages.length){wipeDoc();show('home');}else changed();}}
+    {label:t('deletePage'),kind:'danger',fn:()=>{const [x]=doc.pages.splice(i,1);if(x.thumb)URL.revokeObjectURL(x.thumb);if(!doc.pages.length){libDel(doc.id).catch(()=>{});wipeDoc();goHome();}else changed();}}
   ]);
 }
 document.querySelectorAll('#filterSeg button').forEach(b=>b.onclick=()=>{
@@ -648,21 +742,24 @@ document.querySelectorAll('#filterSeg button').forEach(b=>b.onclick=()=>{
   doc.pages.forEach(p=>p.out=null);changed();
 });
 $('btnAddPage').onclick=()=>openCamera(null);
-$('revClose').onclick=()=>sheet(t('discardTitle'),t('discardNote'),[{label:t('discard'),kind:'danger',fn:()=>{wipeDoc();show('home');}}]);
+$('revClose').onclick=()=>sheet(t('discardTitle'),t('discardNote'),[{label:t('discard'),kind:'danger',fn:()=>{libDel(doc.id).catch(()=>{});wipeDoc();goHome();}}]);
+$('revDone').onclick=async()=>{if(!await waitPdf())return;await libSaveDoc().catch(()=>{});wipeDoc();goHome();toast(t('keptToast'));};
 
 /* ---------- send (phone share menu) ---------- */
+async function shareBlob(blob,name,onSent){
+  const file=new File([blob],name,{type:'application/pdf'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file]});onSent&&onSent();}
+    catch(e){if(e&&e.name==='AbortError')return;downloadFile(file);onSent&&onSent();}
+  }else{downloadFile(file);onSent&&onSent();}
+}
+function downloadFile(file){
+  const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);
+}
 async function sendPdf(){
   if(!doc.pdf){await waitPdf();if(doc.pdf)toast(t('tapAgain'));return;}
-  const name=doc.pdfName||fileName(doc.created||new Date());
-  const file=new File([doc.pdf],name,{type:'application/pdf'});
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
-    try{await navigator.share({files:[file]});doc.sent=true;showDone();}
-    catch(e){if(e&&e.name==='AbortError')return;downloadPdf(file);}
-  }else downloadPdf(file);
-}
-function downloadPdf(file){
-  const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();
-  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);doc.sent=true;showDone();
+  shareBlob(doc.pdf,doc.pdfName||fileName(doc.created||new Date()),()=>{doc.sent=true;libMark(doc.id,{sent:true});showDone();});
 }
 $('btnSend').onclick=sendPdf;$('doneSend').onclick=sendPdf;
 
@@ -675,11 +772,11 @@ function renderDone(){
   $('doneIc').innerHTML=done?ok:pdfIc;$('doneIc').style.background=done?'#e3f3e9':'#e6ecfb';
   $('doneTitle').textContent=doc.saved?t('savedTitle'):doc.sent?t('sentTitle'):t('readyTitle');
   $('doneNote').textContent=doc.saved&&doc.savedUntil?t('savedNote',fmtDate(doc.savedUntil)):(doc.pdfName||'');
-  $('doneErase').textContent=t('eraseNote');
+  $('doneErase').textContent=doc.created&&doc.pages.length?t('keptNote',fmtDate(new Date(doc.created.getTime()+KEEP_PHONE_DAYS*864e5))):'';
   $('doneSave').style.display=DRIVE_ON&&!doc.saved?'':'none';
   $('doneDrive').style.display=DRIVE_ON?'':'none';
 }
-$('doneNew').onclick=()=>{wipeDoc();show('home');};
+$('doneNew').onclick=()=>{wipeDoc();goHome();};
 
 /* =========================================================
    GOOGLE DRIVE (each person's own Drive, app sees only its own files)
@@ -726,20 +823,20 @@ async function uploadPdf(blob,name){
   await api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:fd});
   cleanupOld(fid).catch(()=>{});
 }
-async function saveToDrive(){
-  if(!navigator.onLine){toast(t('noInternet'));return;}
-  if(!await waitPdf())return;
-  const name=doc.pdfName;
-  if(!token()){await idbSet('pending',{blob:doc.pdf,name}).catch(()=>{});startAuth('save');return;}
+async function saveBlobToDrive(blob,name,recId){
+  if(!navigator.onLine){toast(t('noInternet'));return false;}
+  if(!token()){await idbSet('pending',{blob,name,recId}).catch(()=>{});startAuth('save');return false;}
   busy(true,t('uploading'));
-  try{
-    await uploadPdf(doc.pdf,name);busy(false);
-    doc.saved=true;doc.savedUntil=new Date(Date.now()+KEEP_DAYS*864e5);showDone();
-  }catch(e){
+  try{await uploadPdf(blob,name);busy(false);if(recId)libMark(recId,{drive:true});return true;}
+  catch(e){
     busy(false);
-    if(e&&e.auth){await idbSet('pending',{blob:doc.pdf,name}).catch(()=>{});startAuth('save');return;}
-    toast(t('driveError'));
+    if(e&&e.auth){await idbSet('pending',{blob,name,recId}).catch(()=>{});startAuth('save');return false;}
+    toast(t('driveError'));return false;
   }
+}
+async function saveToDrive(){
+  if(!await waitPdf())return;
+  if(await saveBlobToDrive(doc.pdf,doc.pdfName,doc.pages.length?doc.id:null)){doc.saved=true;doc.savedUntil=new Date(Date.now()+KEEP_DAYS*864e5);showDone();}
 }
 $('btnSave').onclick=saveToDrive;$('doneSave').onclick=saveToDrive;
 
@@ -789,7 +886,7 @@ async function deleteFiles(list){
 }
 $('btnDeleteAll').onclick=()=>sheet(t('delAllConfirm',driveFiles.length),t('delNote'),[{label:t('deleteAll'),kind:'danger',fn:()=>deleteFiles(driveFiles.slice())}]);
 $('btnMyDrive').onclick=openDrive;$('doneDrive').onclick=openDrive;
-$('driveBack').onclick=()=>{if(doc.pages.length&&!doc.sent&&!doc.saved){show('review');renderReview();}else if(doc.pdf&&(doc.sent||doc.saved)){showDone();}else show('home');};
+$('driveBack').onclick=()=>{if(doc.pages.length&&!doc.sent&&!doc.saved){show('review');renderReview();}else if(doc.pdf&&(doc.sent||doc.saved)){showDone();}else goHome();};
 $('driveRefresh').onclick=()=>{if(token())loadDrive();};
 $('btnConnect').onclick=()=>{if(!navigator.onLine){toast(t('noInternet'));return;}startAuth('drive');};
 $('btnSwitch').onclick=()=>{ls('ps_tok',null);ls('ps_email',null);ls('ps_folder',null);startAuth('drive',true);};
@@ -799,7 +896,8 @@ $('btnSignOut').onclick=()=>{
 };
 
 /* ---------- tiny on-phone holding spot, used only during Google sign-in ---------- */
-function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('ps',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+let _db=null;
+function idb(){if(_db)return Promise.resolve(_db);return new Promise((res,rej)=>{const r=indexedDB.open('ps',2);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('kv'))d.createObjectStore('kv');if(!d.objectStoreNames.contains('scans'))d.createObjectStore('scans',{keyPath:'id'});};r.onsuccess=()=>{_db=r.result;res(_db);};r.onerror=()=>rej(r.error);});}
 async function idbSet(k,v){const d=await idb();return new Promise((res,rej)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});}
 async function idbGet(k){const d=await idb();return new Promise((res,rej)=>{const r=d.transaction('kv').objectStore('kv').get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 async function idbDel(k){const d=await idb();return new Promise((res,rej)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').delete(k);tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});}
@@ -820,7 +918,7 @@ async function handleReturn(){
   if(st.intent==='save'&&pending){
     await idbDel('pending').catch(()=>{});
     doc=newDoc();doc.pdf=pending.blob;doc.pdfName=pending.name;doc.created=new Date();
-    if(ok){busy(true,t('uploading'));try{await uploadPdf(doc.pdf,doc.pdfName);doc.saved=true;doc.savedUntil=new Date(Date.now()+KEEP_DAYS*864e5);}catch(e){toast(t('driveError'));}busy(false);}
+    if(ok){busy(true,t('uploading'));try{await uploadPdf(doc.pdf,doc.pdfName);doc.saved=true;doc.savedUntil=new Date(Date.now()+KEEP_DAYS*864e5);if(pending.recId)libMark(pending.recId,{drive:true});}catch(e){toast(t('driveError'));}busy(false);}
     showDone();return true;
   }
   if(pending)idbDel('pending').catch(()=>{});
@@ -829,15 +927,195 @@ async function handleReturn(){
 }
 
 /* =========================================================
+   MY SCANS (kept only inside this app on this phone)
+   ========================================================= */
+function goHome(){show('home');updateLibCount();}
+function tx(store,mode,fn){return idb().then(d=>new Promise((res,rej)=>{const t_=d.transaction(store,mode);const st=t_.objectStore(store);const r=fn(st);t_.oncomplete=()=>res(r&&r.result);t_.onerror=()=>rej(t_.error);}));}
+const libPut=rec=>tx('scans','readwrite',st=>st.put(rec));
+const libGet=id=>tx('scans','readonly',st=>st.get(id));
+const libAll=()=>tx('scans','readonly',st=>st.getAll());
+const libDel=id=>tx('scans','readwrite',st=>st.delete(id));
+async function libMark(id,patch){try{const r=await libGet(id);if(r){Object.assign(r,patch);await libPut(r);}}catch(e){}}
+async function libSaveDoc(){
+  if(!doc.pdf||!doc.pages.length||doc.pages.some(p=>!p.out))return;
+  const old=await libGet(doc.id).catch(()=>null);
+  await libPut({id:doc.id,name:doc.pdfName,created:doc.created.getTime(),pages:doc.pages.map(p=>({blob:p.out,w:p.w,h:p.h})),
+    sent:!!(doc.sent||(old&&old.sent)),drive:!!(doc.saved||(old&&old.drive))});
+  try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist();}catch(e){}
+}
+async function libCleanup(){
+  const cut=Date.now()-KEEP_PHONE_DAYS*864e5;
+  for(const r of await libAll())if(r.created<cut)await libDel(r.id);
+}
+async function updateLibCount(){
+  try{const n=(await libAll()).length;const c=$('libCount');c.textContent=n;c.style.display=n?'':'none';}catch(e){}
+}
+let libUrls=[];
+function freeLibUrls(){libUrls.forEach(u=>URL.revokeObjectURL(u));libUrls=[];}
+async function openLibrary(){
+  show('library');freeLibUrls();
+  let all=[];try{await libCleanup();all=(await libAll()).sort((a,b)=>b.created-a.created);}catch(e){}
+  const L=$('libList');L.innerHTML='';
+  if(!all.length){const p=document.createElement('p');p.className='muted center';p.textContent=t('libEmpty');L.appendChild(p);}
+  all.forEach(r=>{
+    const size=r.pages.reduce((a,p)=>a+p.blob.size,0),until=new Date(r.created+KEEP_PHONE_DAYS*864e5);
+    const b=document.createElement('button');b.className='libitem';
+    const img=document.createElement('img');const u=URL.createObjectURL(r.pages[0].blob);libUrls.push(u);img.src=u;b.appendChild(img);
+    const info=document.createElement('div');info.style.minWidth='0';
+    info.innerHTML='<div class="nm"></div><div class="meta"></div><div class="b"></div>';
+    info.querySelector('.nm').textContent=r.name;
+    info.querySelector('.meta').textContent=`${t('pages',r.pages.length)} · ${fmtSize(size)} · ${t('deletesOn',until.toLocaleDateString(lang==='uk'?'uk-UA':'en-US',{month:'short',day:'numeric'}))}`;
+    const bb=info.querySelector('.b');
+    if(r.sent){const s_=document.createElement('span');s_.className='badge';s_.textContent=t('sentBadge');bb.appendChild(s_);}
+    if(r.drive){const s_=document.createElement('span');s_.className='badge d';s_.textContent=t('driveBadge');bb.appendChild(s_);}
+    b.appendChild(info);b.onclick=()=>libMenu(r);L.appendChild(b);
+  });
+  updateLibCount();
+}
+async function libMenu(r){
+  busy(true,t('preparing'));let pdf=null;
+  try{pdf=await makePdf(r.pages,r.name);}catch(e){}
+  busy(false);if(!pdf){toast(t('driveError'));return;}
+  const size=fmtSize(pdf.size);
+  sheet(r.name,`${t('pages',r.pages.length)} · ${size}`,[
+    {label:t('send'),kind:'primary',fn:()=>shareBlob(pdf,r.name,()=>libMark(r.id,{sent:true}).then(()=>{if(cur==='library')openLibrary();}))},
+    {label:t('view'),fn:()=>openViewer(r,pdf)},
+    DRIVE_ON&&{label:t('saveDrive'),fn:async()=>{if(await saveBlobToDrive(pdf,r.name,r.id)){toast(t('savedTitle'));setTimeout(openLibrary,300);}}},
+    {label:t('del'),kind:'danger',fn:()=>sheet(t('delConfirm',r.name),t('phoneDelNote'),[{label:t('del'),kind:'danger',fn:async()=>{await libDel(r.id);if(doc.id===r.id)wipeDoc();toast(t('deleted'));openLibrary();}}])}
+  ].filter(Boolean));
+}
+let viewPdf=null,viewRec=null;
+function openViewer(r,pdf){
+  viewPdf=pdf;viewRec=r;show('viewer');$('viewTitle').textContent=r.name;
+  const B=$('viewBody');B.innerHTML='';
+  r.pages.forEach(p=>{const i=document.createElement('img');const u=URL.createObjectURL(p.blob);libUrls.push(u);i.src=u;B.appendChild(i);});
+  B.scrollTop=0;
+}
+$('viewBack').onclick=openLibrary;
+$('viewSend').onclick=()=>{if(viewPdf)shareBlob(viewPdf,viewRec.name,()=>libMark(viewRec.id,{sent:true}));};
+$('libBack').onclick=()=>{freeLibUrls();goHome();};
+
+/* =========================================================
+   LIVE CAMERA (finds the page while you aim, snaps when steady)
+   ========================================================= */
+const live={stream:null,timer:null,replace:null,auto:ls('ps_auto')!=='0',last:null,stable:0,lost:0,armed:true,snap:null,busy:false,unavailable:false};
+const lsmall=document.createElement('canvas'),ltiny=document.createElement('canvas');ltiny.width=ltiny.height=40;
+async function startStream(){
+  const tries=[{audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:3840},height:{ideal:2160}}},{audio:false,video:{facingMode:'environment'}},{audio:false,video:true}];
+  for(const c of tries){try{live.stream=await navigator.mediaDevices.getUserMedia(c);break;}catch(e){live.stream=null;if(e&&(e.name==='NotAllowedError'||e.name==='SecurityError'))break;}}
+  if(!live.stream)return false;
+  const tr=live.stream.getVideoTracks()[0];
+  try{await tr.applyConstraints({advanced:[{focusMode:'continuous'}]});}catch(e){}
+  const v=$('vid');v.srcObject=live.stream;try{await v.play();}catch(e){}
+  live.last=null;live.stable=0;live.lost=0;live.armed=true;return true;
+}
+function stopStream(){
+  clearTimeout(live.timer);live.timer=null;
+  if(live.stream){live.stream.getTracks().forEach(t_=>t_.stop());live.stream=null;}
+  const v=$('vid');if(v)v.srcObject=null;
+}
+async function openCamera(replaceIndex=null){
+  live.replace=replaceIndex;
+  if(live.unavailable||!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){openNativeCamera(replaceIndex);return;}
+  const ok=await startStream();
+  if(!ok){live.unavailable=true;toast(t('camFallback'));return;}
+  if(!await needCv()){stopStream();return;}
+  show('live');renderLive();liveLoop();
+}
+function liveLoop(){clearTimeout(live.timer);live.timer=setTimeout(liveTick,110);}
+function tinyGray(src){const g=ltiny.getContext('2d',{willReadFrequently:true});g.drawImage(src,0,0,40,40);const d=g.getImageData(0,0,40,40).data,o=new Uint8Array(1600);for(let i=0;i<1600;i++)o[i]=(d[i*4]*3+d[i*4+1]*6+d[i*4+2])/10;return o;}
+function liveTick(){
+  if(!live.stream||cur!=='live')return;
+  const v=$('vid');
+  if(v.readyState>=2&&v.videoWidth&&!live.busy){
+    const vw=v.videoWidth,vh=v.videoHeight,s=480/Math.max(vw,vh);
+    lsmall.width=Math.round(vw*s);lsmall.height=Math.round(vh*s);
+    lsmall.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,lsmall.width,lsmall.height);
+    let q=null;try{q=findQuad(lsmall);}catch(e){}
+    if(q){
+      q=q.map(p=>[p[0]/lsmall.width,p[1]/lsmall.height]);
+      if(live.last){
+        const mv=Math.max(...q.map((p,i)=>Math.hypot(p[0]-live.last[i][0],p[1]-live.last[i][1])));
+        live.stable=mv<0.025?live.stable+1:0;
+        if(mv<0.12)q=q.map((p,i)=>[live.last[i][0]*0.45+p[0]*0.55,live.last[i][1]*0.45+p[1]*0.55]);
+      }
+      live.last=q;live.lost=0;
+      if(!live.armed&&live.snap){const n=tinyGray(lsmall);let d=0;for(let i=0;i<1600;i++)d+=Math.abs(n[i]-live.snap[i]);if(d/1600>20)live.armed=true;}
+    }else{
+      live.stable=0;live.lost++;
+      if(live.lost>=3)live.last=null;
+      if(live.lost>=4)live.armed=true;
+    }
+    drawLive();
+    if(live.auto&&live.armed&&live.last&&live.stable>=7){capture();return;}
+  }
+  liveLoop();
+}
+function liveMap(){
+  const v=$('vid'),r=$('live').getBoundingClientRect(),vw=v.videoWidth||1,vh=v.videoHeight||1,s=Math.max(r.width/vw,r.height/vh);
+  return {s,ox:(r.width-vw*s)/2,oy:(r.height-vh*s)/2,vw,vh};
+}
+function drawLive(){
+  const svg=$('liveOverlay');
+  if(!live.last){svg.innerHTML='';}
+  else{
+    const m=liveMap();
+    const pts=live.last.map(p=>[(m.ox+p[0]*m.vw*m.s).toFixed(1),(m.oy+p[1]*m.vh*m.s).toFixed(1)].join(',')).join(' ');
+    svg.innerHTML=`<polygon class="${live.auto&&!live.armed?'done':''}" points="${pts}"/>`;
+  }
+  $('liveHint').textContent=!live.last?t('camPoint'):!live.auto?t('camTap'):!live.armed?t('camNext'):t('camHold');
+}
+function renderLive(){
+  const a=$('autoBtn');a.textContent=t('auto')+(live.auto?' ✓':'');a.classList.toggle('on',live.auto);
+  const n=doc.pages.length,th=$('liveThumb'),last=doc.pages[n-1];
+  th.hidden=!n||live.replace!==null;$('liveDone').hidden=!n||live.replace!==null;
+  th.innerHTML=(last&&last.thumb?`<img src="${last.thumb}" alt="">`:'')+(n?`<span class="c">${n}</span>`:'');
+  $('liveDone').textContent=t('done');
+  drawLive();
+}
+async function capture(){
+  if(live.busy||!live.stream)return;
+  const v=$('vid');if(!v.videoWidth){liveLoop();return;}
+  live.busy=true;
+  const f=$('flash');f.classList.add('on');setTimeout(()=>f.classList.remove('on'),60);
+  const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(1,MAX_SRC/Math.max(vw,vh));
+  const c=document.createElement('canvas');c.width=Math.round(vw*s);c.height=Math.round(vh*s);
+  c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+  live.snap=tinyGray(c);live.armed=false;live.stable=0;
+  let q=null;try{q=findQuad(c);}catch(e){}
+  if(!q&&live.last)q=live.last.map(p=>[p[0]*c.width,p[1]*c.height]);
+  if(!q)q=defaultQuad(c.width,c.height,0);
+  const blob=await canvasToBlob(c,0.92);
+  if(!doc.created)doc.created=new Date();
+  if(live.replace!==null&&doc.pages[live.replace]){
+    const p=doc.pages[live.replace];p.src=blob;p.quad=q;p.rot=0;p.out=null;
+    live.busy=false;live.replace=null;show('review');changed();return;
+  }
+  doc.pages.push({id:uid++,src:blob,quad:q,rot:0,out:null,thumb:null,w:0,h:0});
+  live.busy=false;changed();renderLive();liveLoop();
+}
+$('shutter').onclick=()=>capture();
+$('autoBtn').onclick=()=>{live.auto=!live.auto;ls('ps_auto',live.auto?'1':'0');live.stable=0;renderLive();};
+$('liveDone').onclick=$('liveThumb').onclick=()=>{show('review');renderReview();};
+$('liveClose').onclick=()=>{const r=live.replace;live.replace=null;if(doc.pages.length){show('review');renderReview();}else{wipeDoc();goHome();}};
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){if(live.stream)stopStream();}
+  else if(cur==='live'&&!live.stream){startStream().then(ok=>{if(ok)liveLoop();else{show(doc.pages.length?'review':'home');}});}
+});
+window.addEventListener('resize',()=>{if(cur==='live')drawLive();});
+
+/* =========================================================
    START
    ========================================================= */
 document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{lang=b.dataset.lang;ls('ps_lang',lang);if(doc.pdf&&doc.created&&doc.pages.length)doc.pdfName=fileName(doc.created);applyText();});
 $('btnScan').onclick=()=>openCamera(null);
 $('btnGallery').onclick=openGallery;
+$('btnLibrary').onclick=openLibrary;
 $('btnMyDrive').style.display=DRIVE_ON?'':'none';
 applyText();
 show('home');
 handleReturn().catch(()=>{});
+libCleanup().catch(()=>{}).then(updateLibCount);
 setTimeout(loadCv,300);
 if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
