@@ -108,7 +108,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 #sheet{background:var(--bg);width:100%;border-radius:20px 20px 0 0;padding:16px 16px calc(16px + var(--safe-b));display:flex;flex-direction:column;gap:10px}
 #sheet h3{margin:4px 0 6px;text-align:center;font-size:17px}
 #sheet p{margin:0 0 6px;text-align:center;color:var(--muted);font-size:15px}
-#toast{position:fixed;left:50%;top:calc(64px + var(--safe-t));transform:translateX(-50%);background:#121826;color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;z-index:60;display:none;max-width:88%;text-align:center}
+#toast{position:fixed;left:50%;top:calc(10px + var(--safe-t));transform:translateX(-50%);background:#121826;color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;z-index:60;display:none;max-width:88%;text-align:center}
 #toast.on{display:block}
 input[type=file]{display:none}
 /* live camera */
@@ -250,9 +250,15 @@ input[type=file]{display:none}
   <div class="top">
     <button class="iconbtn" id="viewBack" aria-label="back">‹</button>
     <h2 id="viewTitle" style="font-size:15px"></h2>
-    <button class="link" id="viewSend" style="padding:10px 6px" data-t="send"></button>
+    <span style="width:44px"></span>
   </div>
   <div class="body" id="viewBody" style="display:flex;flex-direction:column;gap:12px"></div>
+  <div class="bottom">
+    <div class="row">
+      <button id="viewEdit" class="btn secondary" data-t="edit"></button>
+      <button id="viewSend" class="btn primary" data-t="send"></button>
+    </div>
+  </div>
 </section>
 
 <!-- REVIEW -->
@@ -360,7 +366,7 @@ input[type=file]{display:none}
    ========================================================= */
 // Paste the family Drive web app link (from Google Apps Script) here. Leave empty to hide Drive.
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyT9zaczdz-C5Vpk5iSJ764HyH4smeHGbJJp8R0P7fmTRYigA63nW1foiBA7NyE4saYUA/exec';
-const KEEP_DAYS = 30;                         // scans in the family Drive are deleted after this many days (set in the script too)
+const KEEP_DAYS = 90;                         // scans in the family Drive are deleted after this many days (set in the script too)
 const KEEP_PHONE_DAYS = 30;                   // scans kept inside the app on the phone for this many days
 const MAX_SRC = 2800;                         // longest side of stored photo (px)
 const MAX_OUT = 2200;                         // longest side of a finished page (px), about 200 dpi on Letter
@@ -375,7 +381,7 @@ const STR = {
     appName:'Private Scanner', scan:'Scan a document', fromPhotos:'Use a photo instead',
     privacyNote:'Scans are kept only inside this app on this phone (not in Photos or iCloud) and delete themselves after '+KEEP_PHONE_DAYS+' days.',
     myScans:'My scans', libNote:'Kept only inside this app on this phone. Each scan deletes itself '+KEEP_PHONE_DAYS+' days after it was made.',
-    swipeHint:'Swipe left to delete, swipe right to rename.', rename:'Rename', renameTitle:'Rename scan', saveName:'Save', renamed:'Renamed', undo:'Undo',
+    edit:'Edit', swipeHint:'Swipe left to delete, swipe right to rename.', rename:'Rename', renameTitle:'Rename scan', saveName:'Save', renamed:'Renamed', undo:'Undo',
     libEmpty:'No scans yet.', view:'View', sentBadge:'Sent', driveBadge:'In Drive', done:'Done',
     keptToast:'Saved in My scans', keptNote:d=>'Also kept in My scans on this phone until '+d+'.',
     phoneDelNote:'It will be erased from this phone.',
@@ -412,7 +418,7 @@ const STR = {
     appName:'Приватний сканер', scan:'Сканувати документ', fromPhotos:'Вибрати фото з галереї',
     privacyNote:'Скани зберігаються лише в цьому застосунку на телефоні (не у Фото й не в iCloud) і самі видаляються через '+KEEP_PHONE_DAYS+' днів.',
     myScans:'Мої скани', libNote:'Зберігаються лише в цьому застосунку на телефоні. Кожен скан видаляється сам через '+KEEP_PHONE_DAYS+' днів після створення.',
-    swipeHint:'Проведіть вліво, щоб видалити, вправо — щоб перейменувати.', rename:'Перейменувати', renameTitle:'Перейменувати скан', saveName:'Зберегти', renamed:'Перейменовано', undo:'Повернути',
+    edit:'Редагувати', swipeHint:'Проведіть вліво, щоб видалити, вправо — щоб перейменувати.', rename:'Перейменувати', renameTitle:'Перейменувати скан', saveName:'Зберегти', renamed:'Перейменовано', undo:'Повернути',
     libEmpty:'Сканів ще немає.', view:'Переглянути', sentBadge:'Надіслано', driveBadge:'На Диску', done:'Готово',
     keptToast:'Збережено в «Мої скани»', keptNote:d=>'Також зберігається в «Мої скани» на телефоні до '+d+'.',
     phoneDelNote:'Його буде стерто з цього телефона.',
@@ -619,7 +625,7 @@ function renderPage(srcCanvas,quad,rot,filter){
    THE CURRENT SCAN (memory only, never saved on the phone)
    ========================================================= */
 let doc=newDoc();
-function newDoc(){return {id:'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),pages:[],created:null,filter:(()=>{try{const f=localStorage.getItem('ps_filter');return ['bw','gray','color','original'].includes(f)?f:'bw';}catch(e){return 'bw';}})(),pdf:null,pdfName:'',sent:false,saved:false,savedUntil:null,gen:0};}
+function newDoc(){return {id:'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),pages:[],created:null,filter:(()=>{try{const f=localStorage.getItem('ps_filter');return ['bw','gray','color','original'].includes(f)?f:'bw';}catch(e){return 'bw';}})(),pdf:null,pdfName:'',customName:null,fromLib:false,sent:false,saved:false,savedUntil:null,gen:0};}
 function wipeDoc(){doc.pages.forEach(p=>{if(p.thumb)URL.revokeObjectURL(p.thumb);});doc=newDoc();idbDel('pending').catch(()=>{});}
 let uid=1;
 
@@ -745,7 +751,7 @@ async function makePdf(pages,title){
 }
 async function buildPdf(gen){
   if(!doc.pages.length||doc.pages.some(p=>!p.out))return;
-  const name=fileName(doc.created);
+  const name=doc.customName||fileName(doc.created);
   const blob=await makePdf(doc.pages.map(p=>({blob:p.out,w:p.w,h:p.h})),name);
   if(blob&&gen===doc.gen){doc.pdf=blob;doc.pdfName=name;libSaveDoc().catch(e=>console.warn(e));}
 }
@@ -786,8 +792,9 @@ document.querySelectorAll('#filterSeg button').forEach(b=>b.onclick=()=>{
   doc.pages.forEach(p=>p.out=null);changed();
 });
 $('btnAddPage').onclick=()=>openCamera(null);
-$('revClose').onclick=()=>sheet(t('discardTitle'),t('discardNote'),[{label:t('discard'),kind:'danger',fn:()=>{libDel(doc.id).catch(()=>{});wipeDoc();goHome();}}]);
-$('revDone').onclick=async()=>{if(!await waitPdf())return;await libSaveDoc().catch(()=>{});wipeDoc();goHome();toast(t('keptToast'));};
+$('revClose').onclick=()=>doc.fromLib?finishEdit():sheet(t('discardTitle'),t('discardNote'),[{label:t('discard'),kind:'danger',fn:()=>{libDel(doc.id).catch(()=>{});wipeDoc();goHome();}}]);
+$('revDone').onclick=async()=>{if(doc.fromLib){finishEdit();return;}if(!await waitPdf())return;await libSaveDoc().catch(()=>{});wipeDoc();goHome();toast(t('keptToast'));};
+async function finishEdit(){if(!await waitPdf())return;await libSaveDoc().catch(()=>{});wipeDoc();openLibrary();toast(t('keptToast'));}
 
 /* ---------- send (phone share menu) ---------- */
 async function shareBlob(blob,name,onSent){
@@ -955,7 +962,8 @@ async function libMark(id,patch){try{const r=await libGet(id);if(r){Object.assig
 async function libSaveDoc(){
   if(!doc.pdf||!doc.pages.length||doc.pages.some(p=>!p.out))return;
   const old=await libGet(doc.id).catch(()=>null);
-  await libPut({id:doc.id,name:doc.pdfName,created:doc.created.getTime(),pages:doc.pages.map(p=>({blob:p.out,w:p.w,h:p.h})),
+  await libPut({id:doc.id,name:doc.pdfName,custom:!!doc.customName,created:doc.created.getTime(),filter:doc.filter,
+    pages:doc.pages.map(p=>({blob:p.out,w:p.w,h:p.h,src:p.src,quad:p.quad,rot:p.rot})),
     sent:!!(doc.sent||(old&&old.sent)),drive:!!(doc.saved||(old&&old.drive))});
   try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist();}catch(e){}
 }
@@ -999,11 +1007,24 @@ async function libMenu(r){
   const size=fmtSize(pdf.size);
   sheet(r.name,`${t('pages',r.pages.length)} · ${size}`,[
     {label:t('send'),kind:'primary',fn:()=>shareBlob(pdf,r.name,()=>libMark(r.id,{sent:true}).then(()=>{if(cur==='library')openLibrary();}))},
+    {label:t('edit'),fn:()=>editLib(r)},
     {label:t('view'),fn:()=>openViewer(r,pdf)},
     DRIVE_ON&&{label:t('saveDrive'),fn:()=>{const go=async()=>{if(await saveBlobToDrive(pdf,r.name,r.id,go)){toast(t('savedTitle'));setTimeout(openLibrary,300);}};go();}},
     {label:t('del'),kind:'danger',fn:()=>sheet(t('delConfirm',r.name),t('phoneDelNote'),[{label:t('del'),kind:'danger',fn:async()=>{await libDel(r.id);if(doc.id===r.id)wipeDoc();toast(t('deleted'));openLibrary();}}])}
   ].filter(Boolean));
 }
+/* ---------- reopen a saved scan on the pages screen ---------- */
+function editLib(r){
+  flushUndo();wipeDoc();
+  doc.id=r.id;doc.created=new Date(r.created);doc.fromLib=true;
+  if(r.filter)doc.filter=r.filter;
+  doc.customName=r.custom?r.name:null;doc.sent=!!r.sent;doc.saved=!!r.drive;
+  doc.pages=r.pages.map(p=>({id:uid++,src:p.src||p.blob,
+    quad:p.src&&p.quad?p.quad:[[0,0],[p.w,0],[p.w,p.h],[0,p.h]],rot:p.src?(p.rot||0):0,
+    out:p.blob,w:p.w,h:p.h,thumb:URL.createObjectURL(p.blob)}));
+  show('review');changed();
+}
+
 /* ---------- swipe a row: left = delete, right = rename ---------- */
 function swipeRow(fg,onRename,onDelete){
   const row=document.createElement('div');row.className='swrow';
@@ -1049,7 +1070,7 @@ function askName(current,onSave){
 }
 function renameLib(r){
   askName(r.name,async name=>{
-    r.name=name;await libMark(r.id,{name});if(doc.id===r.id)doc.pdfName=name;
+    r.name=name;r.custom=true;await libMark(r.id,{name,custom:true});if(doc.id===r.id){doc.pdfName=name;doc.customName=name;}
     toast(t('renamed'));await openLibrary();libMenu(r);
   });
 }
@@ -1070,6 +1091,7 @@ function openViewer(r,pdf){
 }
 $('viewBack').onclick=openLibrary;
 $('viewSend').onclick=()=>{if(viewPdf)shareBlob(viewPdf,viewRec.name,()=>libMark(viewRec.id,{sent:true}));};
+$('viewEdit').onclick=()=>{if(viewRec)editLib(viewRec);};
 $('libBack').onclick=()=>{freeLibUrls();goHome();};
 
 /* =========================================================
@@ -1209,7 +1231,7 @@ window.addEventListener('resize',()=>{if(cur==='live')drawLive();});
 /* =========================================================
    START
    ========================================================= */
-document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{lang=b.dataset.lang;ls('ps_lang',lang);if(doc.pdf&&doc.created&&doc.pages.length)doc.pdfName=fileName(doc.created);applyText();});
+document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{lang=b.dataset.lang;ls('ps_lang',lang);if(doc.pdf&&doc.created&&doc.pages.length&&!doc.customName)doc.pdfName=fileName(doc.created);applyText();});
 $('btnScan').onclick=()=>openCamera(null);
 $('btnGallery').onclick=openGallery;
 $('btnLibrary').onclick=openLibrary;
