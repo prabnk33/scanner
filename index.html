@@ -1121,13 +1121,14 @@ async function openCamera(replaceIndex=null){
   if(!await needCv()){stopStream();return;}
   show('live');renderLive();liveLoop();
 }
-function liveLoop(){clearTimeout(live.timer);live.timer=setTimeout(liveTick,90);}
+const LIVE={tick:40,frame:320,steady:4,move:0.02}; // camera speed: wait between checks (ms), check size (px), steady checks before snapping, allowed wobble
+function liveLoop(){clearTimeout(live.timer);live.timer=setTimeout(liveTick,LIVE.tick);}
 function tinyGray(src){const g=ltiny.getContext('2d',{willReadFrequently:true});g.drawImage(src,0,0,40,40);const d=g.getImageData(0,0,40,40).data,o=new Uint8Array(1600);for(let i=0;i<1600;i++)o[i]=(d[i*4]*3+d[i*4+1]*6+d[i*4+2])/10;return o;}
 function liveTick(){
   if(!live.stream||cur!=='live')return;
   const v=$('vid');
   if(v.readyState>=2&&v.videoWidth&&!live.busy){
-    const vw=v.videoWidth,vh=v.videoHeight,s=360/Math.max(vw,vh);
+    const vw=v.videoWidth,vh=v.videoHeight,s=LIVE.frame/Math.max(vw,vh);
     lsmall.width=Math.round(vw*s);lsmall.height=Math.round(vh*s);
     lsmall.getContext('2d').drawImage(v,0,0,lsmall.width,lsmall.height);
     let q=null;try{q=findQuad(lsmall,true);if(q&&!looksLikePage(q,lsmall))q=null;}catch(e){}
@@ -1135,7 +1136,7 @@ function liveTick(){
       q=q.map(p=>[p[0]/lsmall.width,p[1]/lsmall.height]);
       if(live.last){
         const mv=Math.max(...q.map((p,i)=>Math.hypot(p[0]-live.last[i][0],p[1]-live.last[i][1])));
-        live.stable=mv<0.025?live.stable+1:0;
+        live.stable=mv<LIVE.move?live.stable+1:0;
         if(mv<0.12)q=q.map((p,i)=>[live.last[i][0]*0.45+p[0]*0.55,live.last[i][1]*0.45+p[1]*0.55]);
       }
       live.last=q;live.lost=0;
@@ -1146,7 +1147,7 @@ function liveTick(){
       if(live.lost>=4)live.armed=true;
     }
     drawLive();
-    if(live.auto&&live.armed&&live.last&&live.stable>=7){capture();return;}
+    if(live.auto&&live.armed&&live.last&&live.stable>=LIVE.steady){capture();return;}
   }
   liveLoop();
 }
@@ -1178,7 +1179,8 @@ function drawLive(){
   else{
     const m=liveMap();
     const pts=live.last.map(p=>[(m.ox+p[0]*m.vw*m.s).toFixed(1),(m.oy+p[1]*m.vh*m.s).toFixed(1)].join(',')).join(' ');
-    svg.innerHTML=`<polygon class="${live.auto&&!live.armed?'done':''}" points="${pts}"/>`;
+    const k=Math.min(1,live.stable/LIVE.steady),done=live.auto&&!live.armed;
+    svg.innerHTML=`<polygon class="${done?'done':''}" style="${done?'':`fill:rgba(61,220,132,${(0.12+0.33*k).toFixed(2)});stroke-width:${(3+3*k).toFixed(1)}`}" points="${pts}"/>`;
   }
   $('liveHint').textContent=!live.last?t('camPoint'):!live.auto?t('camTap'):!live.armed?t('camNext'):t('camHold');
 }
@@ -1198,11 +1200,11 @@ async function capture(){
   const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(1,MAX_SRC/Math.max(vw,vh));
   // grab 3 frames and keep the sharpest one (less blur from a moving hand)
   let c=null,bestScore=-1;
-  for(let k=0;k<3;k++){
+  for(let k=0;k<3;k++){ // 3 quick frames, keep the sharpest
     const ck=document.createElement('canvas');ck.width=Math.round(vw*s);ck.height=Math.round(vh*s);
     ck.getContext('2d').drawImage(v,0,0,ck.width,ck.height);
     const sc=sharpness(ck);if(sc>bestScore){bestScore=sc;c=ck;}
-    if(k<2)await sleep(80);
+    if(k<2)await sleep(40);
   }
   live.snap=tinyGray(c);live.armed=false;live.stable=0;
   let q=null;try{q=findQuad(c);}catch(e){}
@@ -1239,7 +1241,7 @@ $('btnMyDrive').style.display=DRIVE_ON?'':'none';
 applyText();
 show('home');
 libCleanup().catch(()=>{}).then(updateLibCount);
-setTimeout(loadCv,300);
+loadCv(); // start loading the scanner engine right away
 if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>

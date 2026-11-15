@@ -1,5 +1,5 @@
 // Keeps the app working with no signal. Only the app's own files are cached, never scans.
-const VERSION = 'ps-v12';
+const VERSION = 'ps-v13';
 const CORE = ['./', './index.html', './manifest.json', './lib/jspdf.umd.min.js', './lib/opencv.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/home.png'];
 
