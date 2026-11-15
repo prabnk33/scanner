@@ -140,6 +140,8 @@ input[type=file]{display:none}
 .libitem .meta{font-size:13px;color:var(--muted)}
 .badge{display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:1px 7px;margin:4px 6px 0 0;background:#e3f3e9;color:var(--ok)}
 .badge.d{background:var(--accent-soft);color:var(--accent)}
+.field{font:inherit;font-size:18px;padding:14px;border-radius:12px;border:1.5px solid var(--line);background:#fff;width:100%;margin-top:-6px}
+.field:focus{outline:none;border-color:var(--accent)}
 .count{background:var(--accent);color:#fff;border-radius:999px;font-size:14px;padding:1px 9px;margin-left:4px}
 #viewBody img{width:100%;border-radius:6px;box-shadow:0 1px 6px rgba(0,0,0,.18);background:#fff}
 </style>
@@ -300,21 +302,32 @@ input[type=file]{display:none}
     <button class="iconbtn" id="driveRefresh" aria-label="refresh">↻</button>
   </div>
   <div class="body">
-    <div id="driveConnect" class="card" style="display:none">
-      <p style="margin:0 0 12px" data-t="connectNote"></p>
-      <button id="btnConnect" class="btn primary" style="width:100%" data-t="connectDrive"></button>
+    <div class="card">
+      <div class="acct"><span class="muted small" data-t="savingAs"></span><b id="acctName"></b>
+        <button class="link" id="btnChange" style="padding:6px 0;margin-left:auto;font-size:15px" data-t="changePerson"></button></div>
+      <p class="small muted" style="margin:8px 0 0" data-t="autoDelete"></p>
     </div>
-    <div id="driveMain" style="display:none">
-      <div class="card">
-        <div class="acct"><span class="muted small" data-t="savingTo"></span><b id="acctEmail"></b></div>
-        <div class="row" style="margin-top:10px">
-          <button id="btnSwitch" class="btn secondary" style="min-height:44px;font-size:15px" data-t="switchAccount"></button>
-          <button id="btnSignOut" class="btn secondary" style="min-height:44px;font-size:15px" data-t="signOut"></button>
-        </div>
-        <p class="small muted" style="margin:10px 0 0" data-t="autoDelete"></p>
-      </div>
-      <div class="list" id="driveList"></div>
-      <button id="btnDeleteAll" class="btn secondary danger" style="margin-top:16px;width:100%;display:none" data-t="deleteAll"></button>
+    <div class="list" id="driveList"></div>
+    <button id="btnDeleteAll" class="btn secondary danger" style="margin-top:16px;width:100%;display:none" data-t="deleteAll"></button>
+  </div>
+</section>
+
+<!-- ONE-TIME FAMILY SETUP -->
+<section id="setup" class="screen">
+  <div class="top">
+    <button class="iconbtn" id="setupBack" aria-label="back">‹</button>
+    <h2 data-t="familyDrive"></h2>
+    <span style="width:44px"></span>
+  </div>
+  <div class="body">
+    <div class="card" style="display:flex;flex-direction:column;gap:12px">
+      <p style="margin:0" data-t="setupNote"></p>
+      <label class="small muted" for="inName" data-t="yourName"></label>
+      <input id="inName" class="field" autocomplete="given-name" autocapitalize="words" maxlength="40">
+      <label class="small muted" for="inCode" data-t="familyCode"></label>
+      <input id="inCode" class="field" inputmode="numeric" autocomplete="off" autocapitalize="off" maxlength="20">
+      <div id="setupErr" class="small" style="color:var(--danger);min-height:1em"></div>
+      <button id="btnRegister" class="btn primary" data-t="connect"></button>
     </div>
   </div>
 </section>
@@ -329,12 +342,10 @@ input[type=file]{display:none}
 /* =========================================================
    SETTINGS
    ========================================================= */
-// Paste the Google "Client ID" here to turn on "Save to Drive". Leave empty to hide Drive.
-const GOOGLE_CLIENT_ID = '825995771656-mrgfnqubf7gs6ob4s3lk8kvddint8d3j.apps.googleusercontent.com';
-const DRIVE_FOLDER = 'Private Scanner';      // folder created in each person's own Google Drive
-const KEEP_DAYS = 30;                         // scans in Drive are deleted after this many days
+// Paste the family Drive web app link (from Google Apps Script) here. Leave empty to hide Drive.
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyT9zaczdz-C5Vpk5iSJ764HyH4smeHGbJJp8R0P7fmTRYigA63nW1foiBA7NyE4saYUA/exec';
+const KEEP_DAYS = 30;                         // scans in the family Drive are deleted after this many days (set in the script too)
 const KEEP_PHONE_DAYS = 30;                   // scans kept inside the app on the phone for this many days
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'; // app can only see files it created
 const MAX_SRC = 2800;                         // longest side of stored photo (px)
 const MAX_OUT = 2000;                         // longest side of a finished page (px)
 
@@ -366,13 +377,15 @@ const STR = {
     sentTitle:'Sent', savedTitle:'Saved to Google Drive', readyTitle:'Your PDF is ready',
     savedNote:d=>'It will be deleted from Drive automatically on '+d+'.',
 
-    newScan:'New scan', savingTo:'Saving to', switchAccount:'Switch account', signOut:'Disconnect',
+    newScan:'New scan', savingAs:'Saving as', changePerson:'Not you? Change', familyDrive:'Family Drive',
+    setupNote:'One time only. Type your name and the family code you were given. Only you see your scans in this app. The owner of the family Drive can see all scans.',
+    yourName:'Your name', familyCode:'Family code', connect:'Connect', wrongCode:'That family code is not right.',
+    locked:'Too many wrong tries. Try again in an hour.', needName:'Please type your name.', reconnect:'Please connect again.',
     autoDelete:'Scans are deleted permanently '+KEEP_DAYS+' days after they are saved.',
     deletesOn:d=>'Deletes '+d,
     open:'Open', del:'Delete', delConfirm:n=>'Delete "'+n+'" permanently?', delNote:'It will not go to the trash.',
     deleteAll:'Delete all', delAllConfirm:n=>'Permanently delete all '+n+' scans?',
-    empty:'No scans in Drive.', connectDrive:'Connect Google Drive',
-    connectNote:'Scans are saved to a folder named "'+DRIVE_FOLDER+'" in your own Google Drive. This app can only see files it saved, nothing else in your Drive.',
+    empty:'No scans in Drive.',
     noInternet:'No internet connection.', uploading:'Saving to Google Drive…', loading:'Loading…',
     driveError:'Could not reach Google Drive. Try again.', signInCancelled:'Google sign-in was cancelled.',
     deleted:'Deleted', fileWord:'scan', noPhoto:'Could not open that photo. Try again.'
@@ -400,13 +413,15 @@ const STR = {
     sentTitle:'Надіслано', savedTitle:'Збережено на Google Диск', readyTitle:'PDF готовий',
     savedNote:d=>'Його буде автоматично видалено з Диска '+d+'.',
 
-    newScan:'Нове сканування', savingTo:'Зберігається в', switchAccount:'Змінити акаунт', signOut:'Від’єднати',
+    newScan:'Нове сканування', savingAs:'Зберігається як', changePerson:'Не ви? Змінити', familyDrive:'Сімейний Диск',
+    setupNote:'Лише один раз. Введіть своє ім’я та сімейний код, який вам дали. У застосунку ваші скани бачите тільки ви. Власник сімейного Диска бачить усі скани.',
+    yourName:'Ваше ім’я', familyCode:'Сімейний код', connect:'Підключити', wrongCode:'Неправильний сімейний код.',
+    locked:'Забагато невдалих спроб. Спробуйте через годину.', needName:'Будь ласка, введіть своє ім’я.', reconnect:'Будь ласка, підключіться ще раз.',
     autoDelete:'Скани видаляються назавжди через '+KEEP_DAYS+' днів після збереження.',
     deletesOn:d=>'Видалиться '+d,
     open:'Відкрити', del:'Видалити', delConfirm:n=>'Видалити «'+n+'» назавжди?', delNote:'Файл не потрапить у кошик.',
     deleteAll:'Видалити все', delAllConfirm:n=>'Видалити всі скани ('+n+') назавжди?',
-    empty:'На Диску немає сканів.', connectDrive:'Підключити Google Диск',
-    connectNote:'Скани зберігаються в папці «'+DRIVE_FOLDER+'» на вашому власному Google Диску. Застосунок бачить лише файли, які сам зберіг, і нічого більше на вашому Диску.',
+    empty:'На Диску немає сканів.',
     noInternet:'Немає підключення до інтернету.', uploading:'Зберігаємо на Google Диск…', loading:'Завантаження…',
     driveError:'Не вдалося зв’язатися з Google Диском. Спробуйте ще раз.', signInCancelled:'Вхід у Google скасовано.',
     deleted:'Видалено', fileWord:'скан', noPhoto:'Не вдалося відкрити фото. Спробуйте ще раз.'
@@ -495,7 +510,7 @@ function orderQuad(p){
 }
 function defaultQuad(w,h,inset=0.04){const x=w*inset,y=h*inset;return [[x,y],[w-x,y],[w-x,h-y],[x,h-y]];}
 function detectQuad(canvas){return findQuad(canvas)||defaultQuad(canvas.width,canvas.height);}
-function findQuad(canvas){
+function findQuad(canvas,fast){
   const cv=window.cv,W=canvas.width,H=canvas.height,s=Math.min(1,640/Math.max(W,H));
   const sc=document.createElement('canvas');sc.width=Math.round(W*s);sc.height=Math.round(H*s);
   sc.getContext('2d').drawImage(canvas,0,0,sc.width,sc.height);
@@ -507,7 +522,9 @@ function findQuad(canvas){
     let best=null,bestA=0;
     for(let i=0;i<cs.size();i++){
       const c=cs.get(i),a=cv.contourArea(c);
-      if(a>area*0.12&&a<area*0.985&&a>bestA){
+      const br_=(a>area*0.12&&a<area*0.985&&a>bestA)?cv.boundingRect(c):null;
+      const spans=br_&&((br_.x<=3&&br_.x+br_.width>=sc.width-3)||(br_.y<=3&&br_.y+br_.height>=sc.height-3));
+      if(br_&&!spans){
         const per=cv.arcLength(c,true);
         for(const e of [0.02,0.03,0.045,0.06,0.08]){
           const ap=new cv.Mat();cv.approxPolyDP(c,ap,e*per,true);
@@ -522,7 +539,7 @@ function findQuad(canvas){
   let q=null;
   try{
     const k3=M(cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(3,3)));
-    for(const [a,b] of [[40,120],[20,70],[75,200]]){
+    for(const [a,b] of (fast?[[30,100]]:[[40,120],[20,70],[75,200]])){
       const ed=M(new cv.Mat());cv.Canny(gray,ed,a,b);cv.dilate(ed,ed,k3);
       q=find(ed,cv.RETR_LIST);if(q)break;
     }
@@ -678,6 +695,7 @@ function changed(){doc.pdf=null;doc.gen++;renderReview();if(!working)working=run
 async function runQueue(){
   try{
     while(true){
+      while(cur==='live')await sleep(250); // keep the camera smooth; finish pages after Done
       const gen=doc.gen;
       if(!await cvReady())break;
       const p=doc.pages.find(x=>!x.out);
@@ -779,152 +797,120 @@ function renderDone(){
 $('doneNew').onclick=()=>{wipeDoc();goHome();};
 
 /* =========================================================
-   GOOGLE DRIVE (each person's own Drive, app sees only its own files)
+   FAMILY DRIVE (one folder on the owner's Google Drive, via Apps Script)
    ========================================================= */
-const DRIVE_ON=!!GOOGLE_CLIENT_ID;
-const API='https://www.googleapis.com/drive/v3/';
-const REDIRECT=location.origin+location.pathname.replace(/index\.html$/,'');
+const DRIVE_ON=!!SCRIPT_URL;
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){return null;}}
-function token(){try{const o=JSON.parse(ls('ps_tok')||'null');if(o&&o.exp-Date.now()>60000)return o.t;}catch(e){}return null;}
-function startAuth(intent,select){
-  const state=Math.random().toString(36).slice(2)+Date.now().toString(36);
-  ls('ps_oauth',JSON.stringify({state,intent}));
-  const p=new URLSearchParams({client_id:GOOGLE_CLIENT_ID,redirect_uri:REDIRECT,response_type:'token',scope:DRIVE_SCOPE,include_granted_scopes:'true',state});
-  if(select)p.set('prompt','select_account');else if(ls('ps_email'))p.set('login_hint',ls('ps_email'));
-  location.href='https://accounts.google.com/o/oauth2/v2/auth?'+p.toString();
+function getMe(){try{return JSON.parse(ls('ps_me')||'null');}catch(e){return null;}}
+async function fam(action,payload={}){
+  const me=getMe();
+  const body=JSON.stringify(Object.assign({action},me?{id:me.id,key:me.key}:{},payload));
+  let j;
+  try{const r=await fetch(SCRIPT_URL,{method:'POST',body,redirect:'follow'});j=await r.json();}
+  catch(e){throw {net:true};}
+  if(j&&j.error){if(j.error==='unknown_person'||j.error==='bad_key'){ls('ps_me',null);throw {auth:true};}throw {code:j.error};}
+  return j;
 }
-async function api(path,opt={}){
-  const tok=token();if(!tok)throw {auth:true};
-  const r=await fetch(path.startsWith('http')?path:API+path,Object.assign({},opt,{headers:Object.assign({Authorization:'Bearer '+tok},opt.headers||{})}));
-  if(r.status===401){ls('ps_tok',null);throw {auth:true};}
-  if(!r.ok&&r.status!==204)throw {status:r.status};
-  return r.status===204?null:r.json();
-}
-async function ensureFolder(){
-  const id=ls('ps_folder');
-  if(id){try{const f=await api('files/'+id+'?fields=id,trashed');if(f&&!f.trashed)return f.id;}catch(e){if(e.auth)throw e;}}
-  const q=encodeURIComponent(`name='${DRIVE_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-  const l=await api('files?q='+q+'&fields=files(id)&spaces=drive');
-  let fid=l.files&&l.files[0]&&l.files[0].id;
-  if(!fid){const f=await api('files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:DRIVE_FOLDER,mimeType:'application/vnd.google-apps.folder'})});fid=f.id;}
-  ls('ps_folder',fid);return fid;
-}
-async function cleanupOld(fid){
-  const cut=new Date(Date.now()-KEEP_DAYS*864e5).toISOString();
-  const q=encodeURIComponent(`'${fid}' in parents and trashed=false and createdTime < '${cut}'`);
-  const l=await api('files?q='+q+'&fields=files(id)&pageSize=200');
-  for(const f of (l.files||[]))await api('files/'+f.id,{method:'DELETE'}).catch(()=>{});
-}
-async function uploadPdf(blob,name){
-  const fid=await ensureFolder();
-  const fd=new FormData();
-  fd.append('metadata',new Blob([JSON.stringify({name,parents:[fid],mimeType:'application/pdf'})],{type:'application/json'}));
-  fd.append('file',blob,name);
-  await api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:fd});
-  cleanupOld(fid).catch(()=>{});
-}
-async function saveBlobToDrive(blob,name,recId){
-  if(!navigator.onLine){toast(t('noInternet'));return false;}
-  if(!token()){await idbSet('pending',{blob,name,recId}).catch(()=>{});startAuth('save');return false;}
-  busy(true,t('uploading'));
-  try{await uploadPdf(blob,name);busy(false);if(recId)libMark(recId,{drive:true});return true;}
-  catch(e){
+function blobToB64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(blob);});}
+function b64ToBlob(b64,type){const bin=atob(b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type});}
+
+/* ---------- one-time setup: name + family code ---------- */
+let afterSetup=null,setupFrom='home';
+function openSetup(then){afterSetup=then||null;setupFrom=cur;$('setupErr').textContent='';show('setup');}
+$('setupBack').onclick=()=>{if(setupFrom==='review'){show('review');renderReview();}else if(setupFrom==='done'){showDone();}else if(setupFrom==='library'){openLibrary();}else goHome();};
+$('btnRegister').onclick=async()=>{
+  const name=$('inName').value.trim(),code=$('inCode').value.trim();
+  if(!name){$('setupErr').textContent=t('needName');return;}
+  if(!navigator.onLine){toast(t('noInternet'));return;}
+  busy(true,t('loading'));
+  try{
+    const j=await fam('register',{name,code});
+    ls('ps_me',JSON.stringify({id:j.id,key:j.key,name:j.name}));busy(false);
+    $('inCode').value='';
+    const f=afterSetup;afterSetup=null;if(f)f();else openDrive();
+  }catch(e){
     busy(false);
-    if(e&&e.auth){await idbSet('pending',{blob,name,recId}).catch(()=>{});startAuth('save');return false;}
+    $('setupErr').textContent=e&&e.code==='wrong_code'?t('wrongCode'):e&&e.code==='locked'?t('locked'):t('driveError');
+  }
+};
+
+/* ---------- save ---------- */
+async function saveBlobToDrive(blob,name,recId,again){
+  if(!navigator.onLine){toast(t('noInternet'));return false;}
+  if(!getMe()){openSetup(again);return false;}
+  busy(true,t('uploading'));
+  try{
+    await fam('upload',{name,data:await blobToB64(blob)});busy(false);
+    if(recId)libMark(recId,{drive:true});return true;
+  }catch(e){
+    busy(false);
+    if(e&&e.auth){toast(t('reconnect'));openSetup(again);return false;}
     toast(t('driveError'));return false;
   }
 }
 async function saveToDrive(){
   if(!await waitPdf())return;
-  if(await saveBlobToDrive(doc.pdf,doc.pdfName,doc.pages.length?doc.id:null)){doc.saved=true;doc.savedUntil=new Date(Date.now()+KEEP_DAYS*864e5);showDone();}
+  if(await saveBlobToDrive(doc.pdf,doc.pdfName,doc.pages.length?doc.id:null,saveToDrive)){doc.saved=true;doc.savedUntil=new Date(Date.now()+KEEP_DAYS*864e5);showDone();}
 }
 $('btnSave').onclick=saveToDrive;$('doneSave').onclick=saveToDrive;
 
-/* ---------- my scans in Drive ---------- */
+/* ---------- my scans in the family Drive ---------- */
 let driveFiles=[];
 async function openDrive(){
-  show('drive');
-  if(!token()){$('driveConnect').style.display='';$('driveMain').style.display='none';return;}
-  $('driveConnect').style.display='none';$('driveMain').style.display='';
-  $('acctEmail').textContent=ls('ps_email')||'';
-  await loadDrive();
+  if(!getMe()){openSetup(openDrive);return;}
+  show('drive');$('acctName').textContent=getMe().name;
+  driveFiles=[];renderDriveList();await loadDrive();
 }
 async function loadDrive(){
   if(!navigator.onLine){toast(t('noInternet'));return;}
   busy(true,t('loading'));
-  try{
-    if(!ls('ps_email')){const a=await api('about?fields=user(emailAddress)');ls('ps_email',a.user.emailAddress);$('acctEmail').textContent=a.user.emailAddress;}
-    const fid=await ensureFolder();
-    await cleanupOld(fid).catch(()=>{});
-    const q=encodeURIComponent(`'${fid}' in parents and trashed=false`);
-    const l=await api('files?q='+q+'&fields=files(id,name,size,createdTime,webViewLink)&orderBy=createdTime desc&pageSize=200');
-    driveFiles=l.files||[];
-  }catch(e){if(e&&e.auth){busy(false);$('driveConnect').style.display='';$('driveMain').style.display='none';return;}toast(t('driveError'));}
+  try{const j=await fam('list');driveFiles=j.files||[];}
+  catch(e){busy(false);if(e&&e.auth){toast(t('reconnect'));openSetup(openDrive);return;}toast(t('driveError'));}
   busy(false);renderDriveList();
 }
 function renderDriveList(){
   const L=$('driveList');L.innerHTML='';
   if(!driveFiles.length){const p=document.createElement('p');p.className='muted center';p.textContent=t('empty');L.appendChild(p);}
   driveFiles.forEach(f=>{
-    const until=new Date(new Date(f.createdTime).getTime()+KEEP_DAYS*864e5);
+    const until=new Date(f.created+KEEP_DAYS*864e5);
     const it=document.createElement('div');it.className='item';
     it.innerHTML=`<div class="info"><div class="nm"></div><div class="meta"></div></div><button class="act opn"></button><button class="act del"></button>`;
     it.querySelector('.nm').textContent=f.name;
     it.querySelector('.meta').textContent=`${fmtSize(+f.size||0)} · ${t('deletesOn',until.toLocaleDateString(lang==='uk'?'uk-UA':'en-US',{month:'short',day:'numeric'}))}`;
-    it.querySelector('.opn').textContent=t('open');it.querySelector('.opn').onclick=()=>window.open(f.webViewLink,'_blank');
+    it.querySelector('.opn').textContent=t('open');it.querySelector('.opn').onclick=()=>openDriveFile(f);
     it.querySelector('.del').textContent=t('del');
     it.querySelector('.del').onclick=()=>sheet(t('delConfirm',f.name),t('delNote'),[{label:t('del'),kind:'danger',fn:()=>deleteFiles([f])}]);
     L.appendChild(it);
   });
   $('btnDeleteAll').style.display=driveFiles.length>1?'':'none';
 }
+async function openDriveFile(f){
+  busy(true,t('loading'));let blob=null;
+  try{const j=await fam('get',{fileId:f.id});blob=b64ToBlob(j.data,'application/pdf');}catch(e){}
+  busy(false);if(!blob){toast(t('driveError'));return;}
+  sheet(f.name,fmtSize(blob.size),[
+    {label:t('send'),kind:'primary',fn:()=>shareBlob(blob,f.name)},
+    {label:t('view'),fn:()=>{const u=URL.createObjectURL(blob);window.open(u,'_blank');setTimeout(()=>URL.revokeObjectURL(u),60000);}}
+  ]);
+}
 async function deleteFiles(list){
   busy(true,t('loading'));
-  try{for(const f of list){await api('files/'+f.id,{method:'DELETE'});driveFiles=driveFiles.filter(x=>x.id!==f.id);}toast(t('deleted'));}
+  try{for(const f of list){await fam('delete',{fileId:f.id});driveFiles=driveFiles.filter(x=>x.id!==f.id);}toast(t('deleted'));}
   catch(e){toast(t('driveError'));}
   busy(false);renderDriveList();
 }
 $('btnDeleteAll').onclick=()=>sheet(t('delAllConfirm',driveFiles.length),t('delNote'),[{label:t('deleteAll'),kind:'danger',fn:()=>deleteFiles(driveFiles.slice())}]);
 $('btnMyDrive').onclick=openDrive;$('doneDrive').onclick=openDrive;
 $('driveBack').onclick=()=>{if(doc.pages.length&&!doc.sent&&!doc.saved){show('review');renderReview();}else if(doc.pdf&&(doc.sent||doc.saved)){showDone();}else goHome();};
-$('driveRefresh').onclick=()=>{if(token())loadDrive();};
-$('btnConnect').onclick=()=>{if(!navigator.onLine){toast(t('noInternet'));return;}startAuth('drive');};
-$('btnSwitch').onclick=()=>{ls('ps_tok',null);ls('ps_email',null);ls('ps_folder',null);startAuth('drive',true);};
-$('btnSignOut').onclick=()=>{
-  const tok=token();if(tok)fetch('https://oauth2.googleapis.com/revoke?token='+encodeURIComponent(tok),{method:'POST'}).catch(()=>{});
-  ls('ps_tok',null);ls('ps_email',null);ls('ps_folder',null);driveFiles=[];openDrive();
-};
+$('driveRefresh').onclick=loadDrive;
+$('btnChange').onclick=()=>{ls('ps_me',null);driveFiles=[];openSetup(openDrive);};
 
-/* ---------- tiny on-phone holding spot, used only during Google sign-in ---------- */
+/* ---------- on-phone database ---------- */
 let _db=null;
 function idb(){if(_db)return Promise.resolve(_db);return new Promise((res,rej)=>{const r=indexedDB.open('ps',2);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('kv'))d.createObjectStore('kv');if(!d.objectStoreNames.contains('scans'))d.createObjectStore('scans',{keyPath:'id'});};r.onsuccess=()=>{_db=r.result;res(_db);};r.onerror=()=>rej(r.error);});}
-async function idbSet(k,v){const d=await idb();return new Promise((res,rej)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});}
-async function idbGet(k){const d=await idb();return new Promise((res,rej)=>{const r=d.transaction('kv').objectStore('kv').get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 async function idbDel(k){const d=await idb();return new Promise((res,rej)=>{const tx=d.transaction('kv','readwrite');tx.objectStore('kv').delete(k);tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});}
-
-/* ---------- coming back from Google sign-in ---------- */
-async function handleReturn(){
-  let pending=null;try{pending=await idbGet('pending');}catch(e){}
-  const h=location.hash.slice(1);
-  const st=(()=>{try{return JSON.parse(ls('ps_oauth')||'null');}catch(e){return null;}})();
-  if(!h||!st||!/state=/.test(h)){if(pending)idbDel('pending').catch(()=>{});return false;}
-  const p=new URLSearchParams(h);history.replaceState(null,'',REDIRECT);ls('ps_oauth',null);
-  const ok=p.get('state')===st.state&&p.get('access_token');
-  if(ok){
-    ls('ps_tok',JSON.stringify({t:p.get('access_token'),exp:Date.now()+(+p.get('expires_in')||3600)*1000}));
-    ls('ps_folder',null);
-    try{const a=await api('about?fields=user(emailAddress)');ls('ps_email',a.user.emailAddress);}catch(e){}
-  }else toast(t('signInCancelled'));
-  if(st.intent==='save'&&pending){
-    await idbDel('pending').catch(()=>{});
-    doc=newDoc();doc.pdf=pending.blob;doc.pdfName=pending.name;doc.created=new Date();
-    if(ok){busy(true,t('uploading'));try{await uploadPdf(doc.pdf,doc.pdfName);doc.saved=true;doc.savedUntil=new Date(Date.now()+KEEP_DAYS*864e5);if(pending.recId)libMark(pending.recId,{drive:true});}catch(e){toast(t('driveError'));}busy(false);}
-    showDone();return true;
-  }
-  if(pending)idbDel('pending').catch(()=>{});
-  if(st.intent==='drive'){openDrive();return true;}
-  return false;
-}
+// clear leftovers from the old Google sign-in version
+['ps_tok','ps_email','ps_folder','ps_oauth'].forEach(k=>ls(k,null));
 
 /* =========================================================
    MY SCANS (kept only inside this app on this phone)
@@ -980,7 +966,7 @@ async function libMenu(r){
   sheet(r.name,`${t('pages',r.pages.length)} · ${size}`,[
     {label:t('send'),kind:'primary',fn:()=>shareBlob(pdf,r.name,()=>libMark(r.id,{sent:true}).then(()=>{if(cur==='library')openLibrary();}))},
     {label:t('view'),fn:()=>openViewer(r,pdf)},
-    DRIVE_ON&&{label:t('saveDrive'),fn:async()=>{if(await saveBlobToDrive(pdf,r.name,r.id)){toast(t('savedTitle'));setTimeout(openLibrary,300);}}},
+    DRIVE_ON&&{label:t('saveDrive'),fn:()=>{const go=async()=>{if(await saveBlobToDrive(pdf,r.name,r.id,go)){toast(t('savedTitle'));setTimeout(openLibrary,300);}};go();}},
     {label:t('del'),kind:'danger',fn:()=>sheet(t('delConfirm',r.name),t('phoneDelNote'),[{label:t('del'),kind:'danger',fn:async()=>{await libDel(r.id);if(doc.id===r.id)wipeDoc();toast(t('deleted'));openLibrary();}}])}
   ].filter(Boolean));
 }
@@ -1022,16 +1008,16 @@ async function openCamera(replaceIndex=null){
   if(!await needCv()){stopStream();return;}
   show('live');renderLive();liveLoop();
 }
-function liveLoop(){clearTimeout(live.timer);live.timer=setTimeout(liveTick,110);}
+function liveLoop(){clearTimeout(live.timer);live.timer=setTimeout(liveTick,90);}
 function tinyGray(src){const g=ltiny.getContext('2d',{willReadFrequently:true});g.drawImage(src,0,0,40,40);const d=g.getImageData(0,0,40,40).data,o=new Uint8Array(1600);for(let i=0;i<1600;i++)o[i]=(d[i*4]*3+d[i*4+1]*6+d[i*4+2])/10;return o;}
 function liveTick(){
   if(!live.stream||cur!=='live')return;
   const v=$('vid');
   if(v.readyState>=2&&v.videoWidth&&!live.busy){
-    const vw=v.videoWidth,vh=v.videoHeight,s=480/Math.max(vw,vh);
+    const vw=v.videoWidth,vh=v.videoHeight,s=360/Math.max(vw,vh);
     lsmall.width=Math.round(vw*s);lsmall.height=Math.round(vh*s);
-    lsmall.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,lsmall.width,lsmall.height);
-    let q=null;try{q=findQuad(lsmall);}catch(e){}
+    lsmall.getContext('2d').drawImage(v,0,0,lsmall.width,lsmall.height);
+    let q=null;try{q=findQuad(lsmall,true);if(q&&!looksLikePage(q,lsmall))q=null;}catch(e){}
     if(q){
       q=q.map(p=>[p[0]/lsmall.width,p[1]/lsmall.height]);
       if(live.last){
@@ -1051,6 +1037,17 @@ function liveTick(){
   }
   liveLoop();
 }
+// ignore false finds (table patterns): a page is brighter than its surroundings and does not span the whole frame
+function looksLikePage(q,c){
+  const W=c.width,H=c.height;
+  if((q.some(p=>p[0]<W*0.02)&&q.some(p=>p[0]>W*0.98))||(q.some(p=>p[1]<H*0.02)&&q.some(p=>p[1]>H*0.98)))return false;
+  const d=c.getContext('2d').getImageData(0,0,W,H).data,g=(x,y)=>{const i=(Math.min(H-1,Math.max(0,y|0))*W+Math.min(W-1,Math.max(0,x|0)))*4;return d[i]*0.3+d[i+1]*0.59+d[i+2]*0.11;};
+  let all=0,n=0;for(let y=0;y<H;y+=6)for(let x=0;x<W;x+=6){all+=g(x,y);n++;}all/=n;
+  const [tl,tr,br,bl]=q;let inn=0,m=0;
+  for(let v=0.2;v<=0.8;v+=0.05)for(let u=0.2;u<=0.8;u+=0.05){
+    const x=(1-v)*((1-u)*tl[0]+u*tr[0])+v*((1-u)*bl[0]+u*br[0]),y=(1-v)*((1-u)*tl[1]+u*tr[1])+v*((1-u)*bl[1]+u*br[1]);inn+=g(x,y);m++;}
+  return inn/m>all+8;
+}
 function liveMap(){
   const v=$('vid'),r=$('live').getBoundingClientRect(),vw=v.videoWidth||1,vh=v.videoHeight||1,s=Math.max(r.width/vw,r.height/vh);
   return {s,ox:(r.width-vw*s)/2,oy:(r.height-vh*s)/2,vw,vh};
@@ -1069,7 +1066,7 @@ function renderLive(){
   const a=$('autoBtn');a.textContent=t('auto')+(live.auto?' ✓':'');a.classList.toggle('on',live.auto);
   const n=doc.pages.length,th=$('liveThumb'),last=doc.pages[n-1];
   th.hidden=!n||live.replace!==null;$('liveDone').hidden=!n||live.replace!==null;
-  th.innerHTML=(last&&last.thumb?`<img src="${last.thumb}" alt="">`:'')+(n?`<span class="c">${n}</span>`:'');
+  th.innerHTML=(last&&(last.thumb||last.preview)?`<img src="${last.thumb||last.preview}" alt="">`:'')+(n?`<span class="c">${n}</span>`:'');
   $('liveDone').textContent=t('done');
   drawLive();
 }
@@ -1091,7 +1088,8 @@ async function capture(){
     const p=doc.pages[live.replace];p.src=blob;p.quad=q;p.rot=0;p.out=null;
     live.busy=false;live.replace=null;show('review');changed();return;
   }
-  doc.pages.push({id:uid++,src:blob,quad:q,rot:0,out:null,thumb:null,w:0,h:0});
+  const pv=document.createElement('canvas'),ps=120/Math.max(c.width,c.height);pv.width=Math.round(c.width*ps);pv.height=Math.round(c.height*ps);pv.getContext('2d').drawImage(c,0,0,pv.width,pv.height);
+  doc.pages.push({id:uid++,src:blob,quad:q,rot:0,out:null,thumb:null,w:0,h:0,preview:pv.toDataURL('image/jpeg',0.7)});
   live.busy=false;changed();renderLive();liveLoop();
 }
 $('shutter').onclick=()=>capture();
@@ -1114,7 +1112,6 @@ $('btnLibrary').onclick=openLibrary;
 $('btnMyDrive').style.display=DRIVE_ON?'':'none';
 applyText();
 show('home');
-handleReturn().catch(()=>{});
 libCleanup().catch(()=>{}).then(updateLibCount);
 setTimeout(loadCv,300);
 if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
